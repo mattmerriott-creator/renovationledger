@@ -155,6 +155,26 @@ export async function addBudgetItem(fd: FormData) {
   revalidatePath(`/projects/${projectId}/budget`);
 }
 
+// A sub-item is a normal budget_items row with parent_id set. Its parent
+// becomes a group header once it has at least one of these underneath it.
+export async function addBudgetSubItem(fd: FormData) {
+  const user = await requireUser();
+  const projectId = Number(fd.get("project_id"));
+  if (!getOwnedProject(projectId, user.id)) redirect("/dashboard");
+  const parentId = Number(fd.get("parent_id"));
+  const parent = getDb()
+    .prepare("SELECT id FROM budget_items WHERE id = ? AND project_id = ? AND parent_id IS NULL")
+    .get(parentId, projectId);
+  if (!parent) redirect(`/projects/${projectId}/budget`);
+  const { qty, unit, unitCost, amount } = budgetLineValues(fd);
+  getDb()
+    .prepare(
+      "INSERT INTO budget_items (project_id, category, description, amount, sort, qty, unit, unit_cost, parent_id) VALUES (?, ?, ?, ?, 999, ?, ?, ?, ?)"
+    )
+    .run(projectId, str(fd, "category"), str(fd, "description"), amount, qty, unit, unitCost, parentId);
+  revalidatePath(`/projects/${projectId}/budget`);
+}
+
 export async function updateBudgetItem(fd: FormData) {
   const user = await requireUser();
   const projectId = Number(fd.get("project_id"));
@@ -172,9 +192,11 @@ export async function deleteBudgetItem(fd: FormData) {
   const user = await requireUser();
   const projectId = Number(fd.get("project_id"));
   if (!getOwnedProject(projectId, user.id)) redirect("/dashboard");
-  getDb()
-    .prepare("DELETE FROM budget_items WHERE id = ? AND project_id = ?")
-    .run(Number(fd.get("item_id")), projectId);
+  const itemId = Number(fd.get("item_id"));
+  const db = getDb();
+  // Deleting a group takes its sub-items with it.
+  db.prepare("DELETE FROM budget_items WHERE parent_id = ? AND project_id = ?").run(itemId, projectId);
+  db.prepare("DELETE FROM budget_items WHERE id = ? AND project_id = ?").run(itemId, projectId);
   revalidatePath(`/projects/${projectId}/budget`);
 }
 
@@ -338,4 +360,32 @@ export async function deleteDraw(fd: FormData) {
     .prepare("DELETE FROM draws WHERE id = ? AND project_id = ?")
     .run(Number(fd.get("draw_id")), projectId);
   revalidatePath(`/projects/${projectId}/draws`);
+}
+
+// ---------- Comps (manual entry) ----------
+
+export async function addComp(fd: FormData) {
+  const user = await requireUser();
+  const projectId = Number(fd.get("project_id"));
+  if (!getOwnedProject(projectId, user.id)) redirect("/dashboard");
+  getDb()
+    .prepare(
+      `INSERT INTO comps (project_id, address, price, beds, baths, sqft, distance_miles, sold_date, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      projectId, str(fd, "address"), num(fd, "price"), num(fd, "beds"), num(fd, "baths"),
+      Math.round(num(fd, "sqft")), num(fd, "distance_miles"), str(fd, "sold_date"), str(fd, "notes")
+    );
+  revalidatePath(`/projects/${projectId}/comps`);
+}
+
+export async function deleteComp(fd: FormData) {
+  const user = await requireUser();
+  const projectId = Number(fd.get("project_id"));
+  if (!getOwnedProject(projectId, user.id)) redirect("/dashboard");
+  getDb()
+    .prepare("DELETE FROM comps WHERE id = ? AND project_id = ?")
+    .run(Number(fd.get("comp_id")), projectId);
+  revalidatePath(`/projects/${projectId}/comps`);
 }

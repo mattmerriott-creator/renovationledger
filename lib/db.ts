@@ -66,7 +66,8 @@ function migrate(db: Database.Database) {
       category TEXT NOT NULL,
       description TEXT NOT NULL DEFAULT '',
       amount REAL NOT NULL DEFAULT 0,
-      sort INTEGER NOT NULL DEFAULT 0
+      sort INTEGER NOT NULL DEFAULT 0,
+      parent_id INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS transactions (
@@ -102,11 +103,26 @@ function migrate(db: Database.Database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS comps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      address TEXT NOT NULL,
+      price REAL NOT NULL DEFAULT 0,
+      beds REAL NOT NULL DEFAULT 0,
+      baths REAL NOT NULL DEFAULT 0,
+      sqft INTEGER NOT NULL DEFAULT 0,
+      distance_miles REAL NOT NULL DEFAULT 0,
+      sold_date TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_photos_project ON photos(project_id);
     CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
     CREATE INDEX IF NOT EXISTS idx_budget_project ON budget_items(project_id);
     CREATE INDEX IF NOT EXISTS idx_tx_project ON transactions(project_id);
     CREATE INDEX IF NOT EXISTS idx_draws_project ON draws(project_id);
+    CREATE INDEX IF NOT EXISTS idx_comps_project ON comps(project_id);
   `);
 
   addColumnIfMissing(db, "transactions", "receipt_file", "TEXT NOT NULL DEFAULT ''");
@@ -115,6 +131,12 @@ function migrate(db: Database.Database) {
   addColumnIfMissing(db, "budget_items", "qty", "REAL NOT NULL DEFAULT 0");
   const unitAdded = addColumnIfMissing(db, "budget_items", "unit", "TEXT NOT NULL DEFAULT 'job'");
   addColumnIfMissing(db, "budget_items", "unit_cost", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "budget_items", "parent_id", "INTEGER");
+
+  // Created after the column migration above — on a pre-existing database the
+  // column doesn't exist until addColumnIfMissing runs, so this index can't
+  // live in the CREATE TABLE block that runs first.
+  db.exec("CREATE INDEX IF NOT EXISTS idx_budget_parent ON budget_items(parent_id)");
 
   // One-time backfill: rows created before units existed get the template's
   // default unit for their category. Runs only when the column is first added.
@@ -182,6 +204,7 @@ export type BudgetItem = {
   qty: number;
   unit: string;
   unit_cost: number;
+  parent_id: number | null;
 };
 
 export type Transaction = {
@@ -219,6 +242,20 @@ export type Draw = {
   notes: string;
 };
 
+export type ManualComp = {
+  id: number;
+  project_id: number;
+  address: string;
+  price: number;
+  beds: number;
+  baths: number;
+  sqft: number;
+  distance_miles: number;
+  sold_date: string;
+  notes: string;
+  created_at: string;
+};
+
 // Budget units and the default category template live in lib/budget.ts
 // (kept separate so client components can import them without pulling in SQLite).
 
@@ -239,9 +276,14 @@ export type ProjectFinancials = {
 export function getProjectFinancials(projectId: number): ProjectFinancials {
   const d = getDb();
   const project = d.prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as Project;
+  // Sum only leaf items (rows that are not a group header for other rows) so a
+  // group's own stale amount never double-counts alongside its sub-items.
   const budgetTotal = (d.prepare(
-    "SELECT COALESCE(SUM(amount),0) t FROM budget_items WHERE project_id = ?"
-  ).get(projectId) as { t: number }).t;
+    `SELECT COALESCE(SUM(amount),0) t FROM budget_items
+     WHERE project_id = ? AND id NOT IN (
+       SELECT DISTINCT parent_id FROM budget_items WHERE parent_id IS NOT NULL AND project_id = ?
+     )`
+  ).get(projectId, projectId) as { t: number }).t;
   const spentTotal = (d.prepare(
     "SELECT COALESCE(SUM(amount),0) t FROM transactions WHERE project_id = ? AND tx_type = 'expense'"
   ).get(projectId) as { t: number }).t;

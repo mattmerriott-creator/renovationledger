@@ -6,3 +6,4 @@ buildledger.db-shm
 buildledger.db-wal
 uploads/
 .DS_Store
+tsconfig.tsbuildinfo

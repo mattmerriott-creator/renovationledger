@@ -5,7 +5,8 @@
 // distance from the subject address. Free tier: 50 requests/month.
 //
 // Setup: put RENTCAST_API_KEY=xxx in .env.local and restart the server.
-// Without a key, sample comps are returned and flagged so the UI can say so.
+// Without a key, no automated comps are pulled — the comps page lets the
+// user add their own manually instead (see lib/actions.ts addComp).
 
 export type Comp = {
   address: string;
@@ -17,6 +18,8 @@ export type Comp = {
   soldDate: string;
   pricePerSqft: number;
   zillowUrl: string;
+  manual?: boolean;
+  manualId?: number;
 };
 
 export type CompsResult = {
@@ -26,7 +29,7 @@ export type CompsResult = {
   error?: string;
 };
 
-function zillowSearchUrl(address: string) {
+export function zillowSearchUrl(address: string) {
   return `https://www.zillow.com/homes/${encodeURIComponent(address)}_rb/`;
 }
 
@@ -41,7 +44,7 @@ export async function getComps(
   const fullAddress = `${address}, ${city}, ${state} ${zip}`;
 
   if (!key) {
-    return { live: false, estimatedValue: null, comps: sampleComps(city, state) };
+    return { live: false, estimatedValue: null, comps: [] };
   }
 
   try {
@@ -57,7 +60,7 @@ export async function getComps(
       return {
         live: false,
         estimatedValue: null,
-        comps: sampleComps(city, state),
+        comps: [],
         error: `RentCast returned ${res.status}. Check the API key and address.`,
       };
     }
@@ -84,36 +87,8 @@ export async function getComps(
     return {
       live: false,
       estimatedValue: null,
-      comps: sampleComps(city, state),
+      comps: [],
       error: "Could not reach the comps provider.",
     };
   }
-}
-
-// Sample data shown until an API key is configured. Clearly labeled in the UI.
-function sampleComps(city: string, state: string): Comp[] {
-  const c = city || "Tulsa";
-  const s = state || "OK";
-  const rows = [
-    { street: "1412 E Marshall Pl", price: 168000, beds: 3, baths: 2, sqft: 1288, dist: 0.21, sold: "2026-04-18" },
-    { street: "2208 N Boston Ct", price: 154500, beds: 3, baths: 1, sqft: 1150, dist: 0.34, sold: "2026-05-02" },
-    { street: "1731 E Reading St", price: 181000, beds: 3, baths: 2, sqft: 1402, dist: 0.48, sold: "2026-03-27" },
-    { street: "2515 N Gary Ave", price: 145000, beds: 2, baths: 1, sqft: 980, dist: 0.62, sold: "2026-05-21" },
-    { street: "1846 E Latimer St", price: 172500, beds: 3, baths: 2, sqft: 1315, dist: 0.77, sold: "2026-02-14" },
-    { street: "3010 N Delaware Pl", price: 189900, beds: 4, baths: 2, sqft: 1560, dist: 0.91, sold: "2026-04-03" },
-  ];
-  return rows.map((r) => {
-    const address = `${r.street}, ${c}, ${s}`;
-    return {
-      address,
-      price: r.price,
-      beds: r.beds,
-      baths: r.baths,
-      sqft: r.sqft,
-      distanceMiles: r.dist,
-      soldDate: r.sold,
-      pricePerSqft: Math.round(r.price / r.sqft),
-      zillowUrl: zillowSearchUrl(address),
-    };
-  });
 }

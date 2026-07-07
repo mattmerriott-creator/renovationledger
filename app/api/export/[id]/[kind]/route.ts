@@ -38,17 +38,45 @@ export async function GET(
     const items = db
       .prepare("SELECT * FROM budget_items WHERE project_id = ? ORDER BY sort, id")
       .all(project.id) as BudgetItem[];
+    const childrenByParent = new Map<number, BudgetItem[]>();
+    for (const i of items) {
+      if (i.parent_id) {
+        const list = childrenByParent.get(i.parent_id) || [];
+        list.push(i);
+        childrenByParent.set(i.parent_id, list);
+      }
+    }
     rows = [
-      ["Category", "Scope", "Qty", "Unit", "Unit Cost", "Budget", "Actual", "Variance"],
-      ...items.map((i) => {
-        const actual = f.spentByCategory[i.category] || 0;
-        return [
-          i.category, i.description,
-          i.qty ? String(i.qty) : "", i.qty ? i.unit : "", i.unit_cost ? i.unit_cost.toFixed(2) : "",
-          i.amount.toFixed(2), actual.toFixed(2), (i.amount - actual).toFixed(2),
-        ];
-      }),
-      ["TOTAL", "", "", "", "", f.budgetTotal.toFixed(2), f.spentTotal.toFixed(2), f.budgetRemaining.toFixed(2)],
+      ["Category", "Parent", "Scope", "Qty", "Unit", "Unit Cost", "Budget", "Actual", "Variance"],
+      ...items
+        .filter((i) => !i.parent_id) // top-level first, in display order
+        .flatMap((top) => {
+          const kids = childrenByParent.get(top.id) || [];
+          if (kids.length > 0) {
+            const groupBudget = kids.reduce((s, k) => s + k.amount, 0);
+            const groupActual =
+              kids.reduce((s, k) => s + (f.spentByCategory[k.category] || 0), 0) +
+              (f.spentByCategory[top.category] || 0);
+            return [
+              [top.category, "", top.description, "", "", "", groupBudget.toFixed(2), groupActual.toFixed(2), (groupBudget - groupActual).toFixed(2)],
+              ...kids.map((k) => {
+                const actual = f.spentByCategory[k.category] || 0;
+                return [
+                  k.category, top.category, k.description,
+                  k.qty ? String(k.qty) : "", k.qty ? k.unit : "", k.unit_cost ? k.unit_cost.toFixed(2) : "",
+                  k.amount.toFixed(2), actual.toFixed(2), (k.amount - actual).toFixed(2),
+                ];
+              }),
+            ];
+          }
+          const actual = f.spentByCategory[top.category] || 0;
+          return [[
+            top.category, "", top.description,
+            top.qty ? String(top.qty) : "", top.qty ? top.unit : "", top.unit_cost ? top.unit_cost.toFixed(2) : "",
+            top.amount.toFixed(2), actual.toFixed(2), (top.amount - actual).toFixed(2),
+          ]];
+        }),
+      ["TOTAL", "", "", "", "", "", f.budgetTotal.toFixed(2), f.spentTotal.toFixed(2), f.budgetRemaining.toFixed(2)],
     ];
   } else if (kind === "draws") {
     const draws = db
