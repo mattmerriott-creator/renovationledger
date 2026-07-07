@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import getDb, { BudgetItem, Draw, Project, Transaction, getProjectFinancials } from "@/lib/db";
+import getDb, { BudgetItem, Draw, Project, Transaction, TransactionItem, getProjectFinancials } from "@/lib/db";
 import { getCurrentUser, getOwnedProject } from "@/lib/auth";
 
 function csvEscape(v: string | number): string {
@@ -29,9 +29,31 @@ export async function GET(
     const txs = db
       .prepare("SELECT * FROM transactions WHERE project_id = ? ORDER BY tx_date, id")
       .all(project.id) as Transaction[];
+    const itemsByTx = new Map<number, TransactionItem[]>();
+    if (txs.length > 0) {
+      const placeholders = txs.map(() => "?").join(",");
+      const allItems = db
+        .prepare(`SELECT * FROM transaction_items WHERE transaction_id IN (${placeholders}) ORDER BY id`)
+        .all(...txs.map((t) => t.id)) as TransactionItem[];
+      for (const it of allItems) {
+        const list = itemsByTx.get(it.transaction_id) || [];
+        list.push(it);
+        itemsByTx.set(it.transaction_id, list);
+      }
+    }
+    // One row per line item — a split receipt shows its per-category breakdown,
+    // not just the combined total, which is what a bookkeeper needs.
     rows = [
-      ["Date", "Vendor", "Category", "Description", "Type", "Amount"],
-      ...txs.map((t) => [t.tx_date, t.vendor, t.category, t.description, t.tx_type, t.amount.toFixed(2)]),
+      ["Date", "Vendor", "Payment Method", "Category", "Description", "Type", "Amount"],
+      ...txs.flatMap((t) => {
+        const items = itemsByTx.get(t.id) || [];
+        if (items.length === 0) {
+          return [[t.tx_date, t.vendor, t.payment_method, t.category, t.description, t.tx_type, t.amount.toFixed(2)]];
+        }
+        return items.map((it) => [
+          t.tx_date, t.vendor, t.payment_method, it.category, it.description, t.tx_type, it.amount.toFixed(2),
+        ]);
+      }),
     ];
   } else if (kind === "budget") {
     const f = getProjectFinancials(project.id);

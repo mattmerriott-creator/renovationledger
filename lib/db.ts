@@ -78,6 +78,15 @@ function migrate(db: Database.Database) {
       category TEXT NOT NULL DEFAULT '',
       description TEXT NOT NULL DEFAULT '',
       tx_type TEXT NOT NULL DEFAULT 'expense',
+      amount REAL NOT NULL DEFAULT 0,
+      payment_method TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS transaction_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+      category TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
       amount REAL NOT NULL DEFAULT 0
     );
 
@@ -123,10 +132,12 @@ function migrate(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_tx_project ON transactions(project_id);
     CREATE INDEX IF NOT EXISTS idx_draws_project ON draws(project_id);
     CREATE INDEX IF NOT EXISTS idx_comps_project ON comps(project_id);
+    CREATE INDEX IF NOT EXISTS idx_tx_items_tx ON transaction_items(transaction_id);
   `);
 
   addColumnIfMissing(db, "transactions", "receipt_file", "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing(db, "transactions", "receipt_name", "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, "transactions", "payment_method", "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing(db, "projects", "completed_summary", "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing(db, "budget_items", "qty", "REAL NOT NULL DEFAULT 0");
   const unitAdded = addColumnIfMissing(db, "budget_items", "unit", "TEXT NOT NULL DEFAULT 'job'");
@@ -144,6 +155,29 @@ function migrate(db: Database.Database) {
     const setUnit = db.prepare("UPDATE budget_items SET unit = ? WHERE category = ?");
     for (const t of DEFAULT_BUDGET_TEMPLATE) setUnit.run(t.unit, t.category);
   }
+
+  // One-time backfill: transactions created before line items existed get a
+  // single line item mirroring their own category/description/amount, so
+  // budget actuals (which now read from transaction_items) don't go to zero
+  // for historical data.
+  if (!tableHadRows(db, "transaction_items")) {
+    const oldTx = db
+      .prepare("SELECT id, category, description, amount FROM transactions")
+      .all() as { id: number; category: string; description: string; amount: number }[];
+    const insertItem = db.prepare(
+      "INSERT INTO transaction_items (transaction_id, category, description, amount) VALUES (?, ?, ?, ?)"
+    );
+    for (const t of oldTx) {
+      if (t.amount !== 0 || t.category || t.description) {
+        insertItem.run(t.id, t.category, t.description, t.amount);
+      }
+    }
+  }
+}
+
+function tableHadRows(db: Database.Database, table: string): boolean {
+  const row = db.prepare(`SELECT COUNT(*) c FROM ${table}`).get() as { c: number };
+  return row.c > 0;
 }
 
 function addColumnIfMissing(db: Database.Database, table: string, column: string, def: string): boolean {
@@ -216,8 +250,17 @@ export type Transaction = {
   description: string;
   tx_type: "expense" | "income";
   amount: number;
+  payment_method: string;
   receipt_file: string;
   receipt_name: string;
+};
+
+export type TransactionItem = {
+  id: number;
+  transaction_id: number;
+  category: string;
+  description: string;
+  amount: number;
 };
 
 export type Photo = {
@@ -296,8 +339,14 @@ export function getProjectFinancials(projectId: number): ProjectFinancials {
   const drawsRequested = (d.prepare(
     "SELECT COALESCE(SUM(amount),0) t FROM draws WHERE project_id = ? AND status != 'funded'"
   ).get(projectId) as { t: number }).t;
+  // Actuals are attributed at the line-item level, not the parent transaction —
+  // a single receipt can split across several budget categories.
   const rows = d.prepare(
-    "SELECT category, COALESCE(SUM(amount),0) t FROM transactions WHERE project_id = ? AND tx_type = 'expense' GROUP BY category"
+    `SELECT ti.category, COALESCE(SUM(ti.amount),0) t
+     FROM transaction_items ti
+     JOIN transactions tr ON tr.id = ti.transaction_id
+     WHERE tr.project_id = ? AND tr.tx_type = 'expense'
+     GROUP BY ti.category`
   ).all(projectId) as { category: string; t: number }[];
   const spentByCategory: Record<string, number> = {};
   for (const r of rows) spentByCategory[r.category] = r.t;

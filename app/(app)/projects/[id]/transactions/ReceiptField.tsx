@@ -12,7 +12,15 @@ export default function ReceiptField({ categories }: { categories: string[] }) {
 
   function setField(id: string, value: string) {
     const el = document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null;
-    if (el && value) el.value = value;
+    if (!el || !value) return;
+    // Set via the native setter and dispatch a real input event — plain
+    // `el.value = value` doesn't trigger React's onChange, so state that
+    // depends on this field (e.g. the line-item running total) won't update.
+    const proto = el instanceof HTMLSelectElement ? window.HTMLSelectElement.prototype : window.HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+    setter ? setter.call(el, value) : (el.value = value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
   async function scan() {
@@ -39,11 +47,13 @@ export default function ReceiptField({ categories }: { categories: string[] }) {
         return;
       }
       setField("vendor", data.vendor || "");
-      setField("amount", data.amount ? String(data.amount) : "");
       setField("tx_date", data.date || "");
-      setField("description", data.description || "");
+      // Fills the first line item. If the receipt has multiple categories,
+      // add the rest as additional line items after reviewing this one.
+      setField("item_amount_0", data.amount ? String(data.amount) : "");
+      setField("item_description_0", data.description || "");
       if (data.category && categories.includes(data.category)) {
-        setField("category", data.category);
+        setField("item_category_0", data.category);
       }
       setStatus(
         data.confident
