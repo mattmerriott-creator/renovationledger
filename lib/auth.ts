@@ -59,6 +59,21 @@ export async function requireUser(): Promise<User> {
   return user;
 }
 
+// Single-owner admin gate: set ADMIN_EMAIL in the environment to the one
+// account that should see /admin. Everyone else is redirected away, and if
+// the env var is unset nobody gets in — there's no default admin email
+// baked into the source.
+export function isAdmin(user: Pick<User, "email">): boolean {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  return !!adminEmail && user.email.toLowerCase() === adminEmail.toLowerCase();
+}
+
+export async function requireAdmin(): Promise<User> {
+  const user = await requireUser();
+  if (!isAdmin(user)) redirect("/dashboard");
+  return user;
+}
+
 export async function destroySession() {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;

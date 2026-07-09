@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
+import { requireUser, isAdmin } from "@/lib/auth";
 import { logout } from "@/lib/actions";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </Link>
           <nav className="nav-links" aria-label="App navigation">
             <Link href="/dashboard" className="hide-mobile">Projects</Link>
+            {isAdmin(user) && <Link href="/admin/users" className="hide-mobile">Users</Link>}
             <span className="hide-mobile muted small">{user.name}</span>
             <form action={logout}>
               <button type="submit" className="btn btn-ghost btn-sm">Log out</button>
