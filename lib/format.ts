@@ -40,3 +40,17 @@ export const STRATEGY_LABELS: Record<string, string> = {
   rehab: "Rehab",
   new_build: "New Build",
 };
+
+export const EXIT_STRATEGY_LABELS: Record<string, string> = {
+  flip: "Flip",
+  brrrr: "BRRRR",
+};
+
+export const LOAN_TYPE_LABELS: Record<string, string> = {
+  hard_money: "Hard Money",
+  private_money: "Private Money",
+  commercial: "Commercial",
+  conventional: "Conventional",
+  cash: "Cash",
+  other: "Other",
+};

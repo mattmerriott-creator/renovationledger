@@ -34,6 +34,20 @@ export const DEFAULT_BUDGET_TEMPLATE: { category: string; unit: string }[] = [
   { category: "Trim & Interior Doors", unit: "each" },
   { category: "Landscaping & Concrete", unit: "job" },
   { category: "Permits & Fees", unit: "job" },
-  { category: "Holding Costs", unit: "month" },
   { category: "Contingency", unit: "job" },
+];
+
+// Default holding-cost lines seeded on a new project. Priced monthly and
+// multiplied by the holding period (start date to expected exit date) on
+// the Analysis tab. Users add, delete, and re-price lines freely, same as
+// the rehab budget above.
+export const DEFAULT_HOLDING_COST_TEMPLATE: string[] = [
+  "Electric",
+  "Gas",
+  "Water & Sewer",
+  "Trash",
+  "Lawn Maintenance",
+  "Insurance",
+  "Property Taxes",
+  "HOA",
 ];

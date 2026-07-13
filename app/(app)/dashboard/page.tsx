@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import getDb, { Project, getProjectFinancials } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { getDealAnalysis } from "@/lib/analysis";
 import { money, pct, STATUS_LABELS, TYPE_LABELS, STRATEGY_LABELS } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Projects", robots: { index: false } };
@@ -12,7 +13,7 @@ export default async function DashboardPage() {
     .prepare("SELECT * FROM projects WHERE user_id = ? ORDER BY created_at DESC")
     .all(user.id) as Project[];
 
-  const rollups = projects.map((p) => ({ p, f: getProjectFinancials(p.id) }));
+  const rollups = projects.map((p) => ({ p, f: getProjectFinancials(p.id), a: getDealAnalysis(p.id) }));
   const totals = rollups.reduce(
     (acc, { f }) => {
       acc.budget += f.budgetTotal;
@@ -65,7 +66,7 @@ export default async function DashboardPage() {
         </div>
       ) : (
         <div className="grid-3">
-          {rollups.map(({ p, f }, i) => {
+          {rollups.map(({ p, f, a }, i) => {
             const pctSpent = f.budgetTotal > 0 ? Math.min(100, (f.spentTotal / f.budgetTotal) * 100) : 0;
             const over = f.budgetTotal > 0 && f.spentTotal > f.budgetTotal;
             return (
@@ -89,6 +90,15 @@ export default async function DashboardPage() {
                   <div className="progress"><div className={over ? "over" : ""} style={{ width: `${pctSpent}%` }} /></div>
                   <div className="small muted" style={{ marginTop: 8 }}>
                     All-in {money(f.allIn)}{f.allInPctOfArv !== null && <> · {pct(f.allInPctOfArv)} of ARV</>}
+                  </div>
+                  <div className="small" style={{ marginTop: 4, fontWeight: 600 }}>
+                    {a.exitStrategy === "flip" ? (
+                      <span style={a.netProfit < 0 ? { color: "var(--color-danger)" } : undefined}>
+                        Profit {money(a.netProfit)}
+                      </span>
+                    ) : (
+                      <span>Cash left in deal {money(a.cashLeftInDeal)}</span>
+                    )}
                   </div>
                 </div>
               </Link>

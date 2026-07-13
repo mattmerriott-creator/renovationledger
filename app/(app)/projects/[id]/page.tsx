@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { requireUser, getOwnedProject } from "@/lib/auth";
 import { Project, getProjectFinancials } from "@/lib/db";
 import { updateProject, deleteProject } from "@/lib/actions";
-import { money, pct, dateFmt } from "@/lib/format";
+import { getDealAnalysis } from "@/lib/analysis";
+import { money, pct, dateFmt, LOAN_TYPE_LABELS } from "@/lib/format";
 import ProjectFormFields from "../ProjectForm";
 
 export const metadata: Metadata = { title: "Project overview", robots: { index: false } };
@@ -16,9 +17,11 @@ export default async function ProjectOverviewPage({
   const user = await requireUser();
   const project = getOwnedProject(Number(id), user.id) as Project;
   const f = getProjectFinancials(project.id);
+  const a = getDealAnalysis(project.id);
 
   const overBudget = f.budgetTotal > 0 && f.spentTotal > f.budgetTotal;
   const arvWarning = f.allInPctOfArv !== null && f.allInPctOfArv > 75;
+  const dscrWarning = a.exitStrategy === "brrrr" && a.dscr !== null && a.dscr < 1.2;
 
   return (
     <>
@@ -45,10 +48,53 @@ export default async function ProjectOverviewPage({
         </div>
       </div>
 
-      {(overBudget || arvWarning) && (
+      <div className="grid-3" style={{ marginBottom: 16 }}>
+        {a.exitStrategy === "flip" ? (
+          <>
+            <div className="card">
+              <div className="stat-number" style={{ fontSize: 28, color: a.netProfit < 0 ? "var(--color-danger)" : undefined }}>
+                {money(a.netProfit)}
+              </div>
+              <div className="stat-label">Projected net profit</div>
+            </div>
+            <div className="card">
+              <div className="stat-number" style={{ fontSize: 28 }}>{money(a.realtorFee)}</div>
+              <div className="stat-label">Realtor fee at {project.realtor_fee_pct}%</div>
+            </div>
+            <div className="card">
+              <div className="stat-number" style={{ fontSize: 28 }}>{pct(a.roi)}</div>
+              <div className="stat-label">Cash-on-cash ROI</div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="card">
+              <div className="stat-number" style={{ fontSize: 28, color: a.cashLeftInDeal > 0 ? undefined : "#3d7a2f" }}>
+                {money(a.cashLeftInDeal)}
+              </div>
+              <div className="stat-label">Cash left in deal after refi</div>
+            </div>
+            <div className="card">
+              <div className="stat-number" style={{ fontSize: 28, color: dscrWarning ? "var(--color-danger)" : undefined }}>
+                {a.dscr !== null ? `${a.dscr.toFixed(2)}x` : "—"}
+              </div>
+              <div className="stat-label">DSCR</div>
+            </div>
+            <div className="card">
+              <div className="stat-number" style={{ fontSize: 28, color: a.monthlyCashFlow < 0 ? "var(--color-danger)" : undefined }}>
+                {money(a.monthlyCashFlow)}
+              </div>
+              <div className="stat-label">Monthly cash flow</div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {(overBudget || arvWarning || dscrWarning) && (
         <div className="form-error" style={{ marginBottom: 16 }}>
           {overBudget && <div>Spending is over budget by {money(f.spentTotal - f.budgetTotal)}.</div>}
           {arvWarning && <div>All-in is above 75% of ARV. Check the numbers before spending more.</div>}
+          {dscrWarning && <div>DSCR is {a.dscr!.toFixed(2)}x, below your 1.2 minimum.</div>}
         </div>
       )}
 
@@ -61,8 +107,27 @@ export default async function ProjectOverviewPage({
               <tr><td className="muted">Rehab budget</td><td className="num">{money(f.budgetTotal)}</td></tr>
               <tr><td className="muted">Spent to date</td><td className="num">{money(f.spentTotal)}</td></tr>
               <tr><td className="muted">ARV</td><td className="num">{money(project.arv)}</td></tr>
-              <tr><td className="muted">Loan · {project.lender_name || "no lender set"}</td><td className="num">{money(project.loan_amount)}</td></tr>
+              <tr>
+                <td className="muted">
+                  Loan · {project.lender_name || "no lender set"}
+                  {project.loan_type ? ` · ${LOAN_TYPE_LABELS[project.loan_type] || project.loan_type}` : ""}
+                  {project.interest_rate ? ` · ${project.interest_rate}%` : ""}
+                  {project.loan_term_months ? ` · ${project.loan_term_months} mo.` : ""}
+                </td>
+                <td className="num">{money(project.loan_amount)}</td>
+              </tr>
+              <tr><td className="muted">Down payment</td><td className="num">{money(project.down_payment)}</td></tr>
+              <tr>
+                <td className="muted">Holding costs ({a.holdMonths} mo.)</td>
+                <td className="num">{money(a.holdingCostTotal)}</td>
+              </tr>
               <tr><td className="muted">Income logged</td><td className="num">{money(f.incomeTotal)}</td></tr>
+              <tr>
+                <td style={{ fontWeight: 700 }}>{a.exitStrategy === "flip" ? "Projected net profit" : "Cash left in deal"}</td>
+                <td className="num" style={{ fontWeight: 700 }}>
+                  {money(a.exitStrategy === "flip" ? a.netProfit : a.cashLeftInDeal)}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>

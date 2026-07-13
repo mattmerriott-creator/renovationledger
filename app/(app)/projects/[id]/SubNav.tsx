@@ -9,6 +9,8 @@ export default function SubNav({ projectId }: { projectId: number }) {
   const tabs = [
     { href: base, label: "Overview" },
     { href: `${base}/budget`, label: "Budget" },
+    { href: `${base}/holding-costs`, label: "Holding Costs" },
+    { href: `${base}/analysis`, label: "Analysis" },
     { href: `${base}/transactions`, label: "Transactions" },
     { href: `${base}/draws`, label: "Draws" },
     { href: `${base}/photos`, label: "Photos" },

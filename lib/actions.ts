@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import getDb, { Photo, Transaction } from "./db";
-import { DEFAULT_BUDGET_TEMPLATE, BUDGET_UNITS } from "./budget";
+import { DEFAULT_BUDGET_TEMPLATE, DEFAULT_HOLDING_COST_TEMPLATE, BUDGET_UNITS } from "./budget";
 import {
   hashPassword,
   verifyPassword,
@@ -76,8 +76,12 @@ export async function createProject(fd: FormData) {
       `INSERT INTO projects
         (user_id, name, address, city, state, zip, property_type, strategy, status,
          purchase_price, arv, loan_amount, lender_name, units, beds, baths, sqft,
-         start_date, target_end_date, notes)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+         start_date, target_end_date, notes,
+         exit_strategy, loan_type, loan_term_months, interest_rate, points, down_payment,
+         purchase_closing_costs, realtor_fee_pct, selling_closing_costs, refinance_ltv_pct,
+         refinance_closing_costs, exit_date, monthly_rent, monthly_operating_expenses,
+         refinance_rate, refinance_term_months)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     )
     .run(
       user.id, name, address, str(fd, "city"), str(fd, "state").toUpperCase(), str(fd, "zip"),
@@ -86,7 +90,13 @@ export async function createProject(fd: FormData) {
       str(fd, "status") || "planning",
       num(fd, "purchase_price"), num(fd, "arv"), num(fd, "loan_amount"), str(fd, "lender_name"),
       Math.max(1, Math.round(num(fd, "units"))), num(fd, "beds"), num(fd, "baths"), Math.round(num(fd, "sqft")),
-      str(fd, "start_date"), str(fd, "target_end_date"), str(fd, "notes")
+      str(fd, "start_date"), str(fd, "target_end_date"), str(fd, "notes"),
+      str(fd, "exit_strategy") || "flip", str(fd, "loan_type"), Math.round(num(fd, "loan_term_months")),
+      num(fd, "interest_rate"), num(fd, "points"), num(fd, "down_payment"),
+      num(fd, "purchase_closing_costs"), num(fd, "realtor_fee_pct") || 6, num(fd, "selling_closing_costs"),
+      num(fd, "refinance_ltv_pct") || 75, num(fd, "refinance_closing_costs"), str(fd, "exit_date"),
+      num(fd, "monthly_rent"), num(fd, "monthly_operating_expenses"),
+      num(fd, "refinance_rate"), Math.round(num(fd, "refinance_term_months")) || 360
     );
   const projectId = Number(result.lastInsertRowid);
 
@@ -95,6 +105,12 @@ export async function createProject(fd: FormData) {
     "INSERT INTO budget_items (project_id, category, amount, sort, unit) VALUES (?, ?, 0, ?, ?)"
   );
   DEFAULT_BUDGET_TEMPLATE.forEach((t, i) => insert.run(projectId, t.category, i, t.unit));
+
+  // Seed the default holding-cost template at $0/month, same idea as the budget.
+  const insertHolding = db.prepare(
+    "INSERT INTO holding_cost_items (project_id, name, monthly_amount, sort) VALUES (?, ?, 0, ?)"
+  );
+  DEFAULT_HOLDING_COST_TEMPLATE.forEach((name, i) => insertHolding.run(projectId, name, i));
 
   redirect(`/projects/${projectId}`);
 }
@@ -108,7 +124,12 @@ export async function updateProject(fd: FormData) {
     .prepare(
       `UPDATE projects SET name=?, address=?, city=?, state=?, zip=?, property_type=?, strategy=?,
         status=?, purchase_price=?, arv=?, loan_amount=?, lender_name=?, units=?, beds=?, baths=?,
-        sqft=?, start_date=?, target_end_date=?, notes=? WHERE id=? AND user_id=?`
+        sqft=?, start_date=?, target_end_date=?, notes=?,
+        exit_strategy=?, loan_type=?, loan_term_months=?, interest_rate=?, points=?, down_payment=?,
+        purchase_closing_costs=?, realtor_fee_pct=?, selling_closing_costs=?, refinance_ltv_pct=?,
+        refinance_closing_costs=?, exit_date=?, monthly_rent=?, monthly_operating_expenses=?,
+        refinance_rate=?, refinance_term_months=?
+       WHERE id=? AND user_id=?`
     )
     .run(
       str(fd, "name"), str(fd, "address"), str(fd, "city"), str(fd, "state").toUpperCase(), str(fd, "zip"),
@@ -116,6 +137,12 @@ export async function updateProject(fd: FormData) {
       num(fd, "purchase_price"), num(fd, "arv"), num(fd, "loan_amount"), str(fd, "lender_name"),
       Math.max(1, Math.round(num(fd, "units"))), num(fd, "beds"), num(fd, "baths"), Math.round(num(fd, "sqft")),
       str(fd, "start_date"), str(fd, "target_end_date"), str(fd, "notes"),
+      str(fd, "exit_strategy") || "flip", str(fd, "loan_type"), Math.round(num(fd, "loan_term_months")),
+      num(fd, "interest_rate"), num(fd, "points"), num(fd, "down_payment"),
+      num(fd, "purchase_closing_costs"), num(fd, "realtor_fee_pct") || 6, num(fd, "selling_closing_costs"),
+      num(fd, "refinance_ltv_pct") || 75, num(fd, "refinance_closing_costs"), str(fd, "exit_date"),
+      num(fd, "monthly_rent"), num(fd, "monthly_operating_expenses"),
+      num(fd, "refinance_rate"), Math.round(num(fd, "refinance_term_months")) || 360,
       id, user.id
     );
   revalidatePath(`/projects/${id}`);
@@ -198,6 +225,38 @@ export async function deleteBudgetItem(fd: FormData) {
   db.prepare("DELETE FROM budget_items WHERE parent_id = ? AND project_id = ?").run(itemId, projectId);
   db.prepare("DELETE FROM budget_items WHERE id = ? AND project_id = ?").run(itemId, projectId);
   revalidatePath(`/projects/${projectId}/budget`);
+}
+
+// ---------- Holding Costs ----------
+
+export async function addHoldingCostItem(fd: FormData) {
+  const user = await requireUser();
+  const projectId = Number(fd.get("project_id"));
+  if (!getOwnedProject(projectId, user.id)) redirect("/dashboard");
+  getDb()
+    .prepare("INSERT INTO holding_cost_items (project_id, name, monthly_amount, sort) VALUES (?, ?, ?, 999)")
+    .run(projectId, str(fd, "name"), num(fd, "monthly_amount"));
+  revalidatePath(`/projects/${projectId}/holding-costs`);
+}
+
+export async function updateHoldingCostItem(fd: FormData) {
+  const user = await requireUser();
+  const projectId = Number(fd.get("project_id"));
+  if (!getOwnedProject(projectId, user.id)) redirect("/dashboard");
+  getDb()
+    .prepare("UPDATE holding_cost_items SET name = ?, monthly_amount = ? WHERE id = ? AND project_id = ?")
+    .run(str(fd, "name"), num(fd, "monthly_amount"), Number(fd.get("item_id")), projectId);
+  revalidatePath(`/projects/${projectId}/holding-costs`);
+}
+
+export async function deleteHoldingCostItem(fd: FormData) {
+  const user = await requireUser();
+  const projectId = Number(fd.get("project_id"));
+  if (!getOwnedProject(projectId, user.id)) redirect("/dashboard");
+  getDb()
+    .prepare("DELETE FROM holding_cost_items WHERE id = ? AND project_id = ?")
+    .run(Number(fd.get("item_id")), projectId);
+  revalidatePath(`/projects/${projectId}/holding-costs`);
 }
 
 // ---------- Transactions ----------

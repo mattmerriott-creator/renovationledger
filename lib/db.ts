@@ -126,6 +126,14 @@ function migrate(db: Database.Database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS holding_cost_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      monthly_amount REAL NOT NULL DEFAULT 0,
+      sort INTEGER NOT NULL DEFAULT 0
+    );
+
     CREATE INDEX IF NOT EXISTS idx_photos_project ON photos(project_id);
     CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
     CREATE INDEX IF NOT EXISTS idx_budget_project ON budget_items(project_id);
@@ -133,6 +141,7 @@ function migrate(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_draws_project ON draws(project_id);
     CREATE INDEX IF NOT EXISTS idx_comps_project ON comps(project_id);
     CREATE INDEX IF NOT EXISTS idx_tx_items_tx ON transaction_items(transaction_id);
+    CREATE INDEX IF NOT EXISTS idx_holding_project ON holding_cost_items(project_id);
   `);
 
   addColumnIfMissing(db, "transactions", "receipt_file", "TEXT NOT NULL DEFAULT ''");
@@ -143,6 +152,25 @@ function migrate(db: Database.Database) {
   const unitAdded = addColumnIfMissing(db, "budget_items", "unit", "TEXT NOT NULL DEFAULT 'job'");
   addColumnIfMissing(db, "budget_items", "unit_cost", "REAL NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "budget_items", "parent_id", "INTEGER");
+
+  // Loan details and exit-strategy fields (flip vs BRRRR), added for the
+  // deal-analysis feature. All default to 0/'' so existing projects load fine.
+  addColumnIfMissing(db, "projects", "exit_strategy", "TEXT NOT NULL DEFAULT 'flip'");
+  addColumnIfMissing(db, "projects", "loan_type", "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, "projects", "loan_term_months", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "projects", "interest_rate", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "projects", "points", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "projects", "down_payment", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "projects", "purchase_closing_costs", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "projects", "realtor_fee_pct", "REAL NOT NULL DEFAULT 6");
+  addColumnIfMissing(db, "projects", "selling_closing_costs", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "projects", "refinance_ltv_pct", "REAL NOT NULL DEFAULT 75");
+  addColumnIfMissing(db, "projects", "refinance_closing_costs", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "projects", "exit_date", "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, "projects", "monthly_rent", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "projects", "monthly_operating_expenses", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "projects", "refinance_rate", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "projects", "refinance_term_months", "INTEGER NOT NULL DEFAULT 360");
 
   // Created after the column migration above — on a pre-existing database the
   // column doesn't exist until addColumnIfMissing runs, so this index can't
@@ -226,6 +254,30 @@ export type Project = {
   notes: string;
   completed_summary: string;
   created_at: string;
+  exit_strategy: "flip" | "brrrr";
+  loan_type: string;
+  loan_term_months: number;
+  interest_rate: number;
+  points: number;
+  down_payment: number;
+  purchase_closing_costs: number;
+  realtor_fee_pct: number;
+  selling_closing_costs: number;
+  refinance_ltv_pct: number;
+  refinance_closing_costs: number;
+  exit_date: string;
+  monthly_rent: number;
+  monthly_operating_expenses: number;
+  refinance_rate: number;
+  refinance_term_months: number;
+};
+
+export type HoldingCostItem = {
+  id: number;
+  project_id: number;
+  name: string;
+  monthly_amount: number;
+  sort: number;
 };
 
 export type BudgetItem = {

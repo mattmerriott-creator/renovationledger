@@ -71,6 +71,96 @@ export default function ProjectFormFields({ project }: { project?: Project }) {
         <label htmlFor="lender_name">Lender</label>
         <input id="lender_name" name="lender_name" defaultValue={p?.lender_name} placeholder="First Bank of Tulsa" />
       </div>
+
+      <h3 className="small" style={{ fontWeight: 600, margin: "20px 0 4px" }}>Loan & purchase costs</h3>
+      <div className="form-grid-3">
+        <div className="field">
+          <label htmlFor="loan_type">Loan type</label>
+          <select id="loan_type" name="loan_type" defaultValue={p?.loan_type ?? ""}>
+            <option value="">Not set</option>
+            <option value="hard_money">Hard money</option>
+            <option value="private_money">Private money</option>
+            <option value="commercial">Commercial</option>
+            <option value="conventional">Conventional</option>
+            <option value="cash">Cash</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="loan_term_months">Loan term (months)</label>
+          <input id="loan_term_months" name="loan_term_months" inputMode="numeric" defaultValue={p?.loan_term_months || ""} placeholder="12" />
+        </div>
+        <div className="field">
+          <label htmlFor="interest_rate">Interest rate (%)</label>
+          <input id="interest_rate" name="interest_rate" inputMode="decimal" defaultValue={p?.interest_rate || ""} placeholder="10" />
+        </div>
+      </div>
+      <div className="form-grid-3">
+        <div className="field">
+          <label htmlFor="points">Points (%)</label>
+          <input id="points" name="points" inputMode="decimal" defaultValue={p?.points || ""} placeholder="2" />
+        </div>
+        <div className="field">
+          <label htmlFor="down_payment">Down payment ($)</label>
+          <input id="down_payment" name="down_payment" inputMode="decimal" defaultValue={p?.down_payment || ""} placeholder="17000" />
+        </div>
+        <div className="field">
+          <label htmlFor="purchase_closing_costs">Purchase closing costs ($)</label>
+          <input id="purchase_closing_costs" name="purchase_closing_costs" inputMode="decimal" defaultValue={p?.purchase_closing_costs || ""} placeholder="2500" />
+        </div>
+      </div>
+
+      <h3 className="small" style={{ fontWeight: 600, margin: "20px 0 4px" }}>Exit strategy</h3>
+      <div className="form-grid-3">
+        <div className="field">
+          <label htmlFor="exit_strategy">Exit strategy</label>
+          <select id="exit_strategy" name="exit_strategy" defaultValue={p?.exit_strategy ?? "flip"}>
+            <option value="flip">Flip</option>
+            <option value="brrrr">BRRRR</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="exit_date">Expected sale / refi date</label>
+          <input id="exit_date" name="exit_date" type="date" defaultValue={p?.exit_date} />
+        </div>
+        <div className="field">
+          <label htmlFor="realtor_fee_pct">Realtor fee % (flip)</label>
+          <input id="realtor_fee_pct" name="realtor_fee_pct" inputMode="decimal" defaultValue={p?.realtor_fee_pct || ""} placeholder="6" />
+        </div>
+      </div>
+      <div className="form-grid-3">
+        <div className="field">
+          <label htmlFor="selling_closing_costs">Selling closing costs ($, flip)</label>
+          <input id="selling_closing_costs" name="selling_closing_costs" inputMode="decimal" defaultValue={p?.selling_closing_costs || ""} placeholder="1500" />
+        </div>
+        <div className="field">
+          <label htmlFor="refinance_ltv_pct">Refinance LTV % of ARV (BRRRR)</label>
+          <input id="refinance_ltv_pct" name="refinance_ltv_pct" inputMode="decimal" defaultValue={p?.refinance_ltv_pct || ""} placeholder="75" />
+        </div>
+        <div className="field">
+          <label htmlFor="refinance_closing_costs">Refinance closing costs ($, BRRRR)</label>
+          <input id="refinance_closing_costs" name="refinance_closing_costs" inputMode="decimal" defaultValue={p?.refinance_closing_costs || ""} placeholder="3000" />
+        </div>
+      </div>
+      <div className="form-grid-3">
+        <div className="field">
+          <label htmlFor="monthly_rent">Monthly rent (BRRRR)</label>
+          <input id="monthly_rent" name="monthly_rent" inputMode="decimal" defaultValue={p?.monthly_rent || ""} placeholder="1450" />
+        </div>
+        <div className="field">
+          <label htmlFor="monthly_operating_expenses">Monthly operating expenses (BRRRR)</label>
+          <input id="monthly_operating_expenses" name="monthly_operating_expenses" inputMode="decimal" defaultValue={p?.monthly_operating_expenses || ""} placeholder="350" />
+        </div>
+        <div className="field">
+          <label htmlFor="refinance_rate">Refinance rate % (BRRRR)</label>
+          <input id="refinance_rate" name="refinance_rate" inputMode="decimal" defaultValue={p?.refinance_rate || ""} placeholder="7.25" />
+        </div>
+      </div>
+      <div className="field">
+        <label htmlFor="refinance_term_months">Refinance term (months, BRRRR)</label>
+        <input id="refinance_term_months" name="refinance_term_months" inputMode="numeric" defaultValue={p?.refinance_term_months || ""} placeholder="360" />
+      </div>
+
       <div className="form-grid-3">
         <div className="field">
           <label htmlFor="units">Units</label>
