@@ -120,13 +120,18 @@ export default function BudgetRow({
   };
 
   function handleSaveClick() {
-    // Optimistic: flips the row to read-only right away. The native form
-    // submission (via form={formId}) still fires and persists the values;
-    // the sessionStorage timestamp carries the "saved" confirmation across
-    // the remount(s) that follow.
+    // Clicking a submit button fires this handler before the browser's
+    // default action (submitting the associated form={formId} elements)
+    // runs. Flipping `editing` to false here, synchronously, would unmount
+    // those inputs before the browser ever reads their values, so the save
+    // silently submits an empty form. Deferring to a macrotask lets the
+    // native submit happen first; the sessionStorage timestamp then carries
+    // the "saved" confirmation across the remount(s) that follow.
     sessionStorage.setItem(savedKey, String(Date.now()));
-    setEditing(false);
-    setJustSaved(true);
+    setTimeout(() => {
+      setEditing(false);
+      setJustSaved(true);
+    }, 0);
   }
 
   const categoryLabel = indent ? (

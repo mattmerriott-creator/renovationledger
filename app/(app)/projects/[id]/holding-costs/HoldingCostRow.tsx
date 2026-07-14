@@ -53,9 +53,15 @@ export default function HoldingCostRow({
   }, [justSaved]);
 
   function handleSaveClick() {
+    // Deferred to a macrotask so the browser's native form submission (via
+    // form={formId}) fires and reads the inputs' values before this unmounts
+    // them by flipping the row to read-only. See BudgetRow's handleSaveClick
+    // for the full explanation.
     sessionStorage.setItem(savedKey, String(Date.now()));
-    setEditing(false);
-    setJustSaved(true);
+    setTimeout(() => {
+      setEditing(false);
+      setJustSaved(true);
+    }, 0);
   }
 
   if (!editing) {
