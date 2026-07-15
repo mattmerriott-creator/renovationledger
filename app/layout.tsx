@@ -18,6 +18,11 @@ export const metadata: Metadata = {
     siteName: "RenovationLedger",
     type: "website",
   },
+  twitter: {
+    card: "summary_large_image",
+  },
+  // No `icons` field here — app/icon.png and app/apple-icon.png are picked up
+  // automatically via Next.js's file-convention metadata resolution.
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -28,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     url: SITE_URL,
+    image: `${SITE_URL}/logo.png`,
     description:
       "Project tracking software for real estate investors: rehab budgets, transaction tracking, draw schedules, sold comps, and lender-ready reports for single family and multi family rehabs and new builds.",
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
