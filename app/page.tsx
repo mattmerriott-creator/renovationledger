@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/auth";
+import SiteHeader from "./SiteHeader";
+import SiteFooter from "./SiteFooter";
 
 const SITE_URL = process.env.SITE_URL || "http://localhost:3000";
 
@@ -45,8 +46,6 @@ const FAQS = [
 ];
 
 export default async function LandingPage() {
-  const user = await getCurrentUser();
-
   const faqSchema = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -102,26 +101,7 @@ export default async function LandingPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
 
-      <header className="nav">
-        <div className="container nav-inner">
-          <Link href="/" aria-label="RenovationLedger home">
-            <img src="/logo.png" alt="" width={132} height={32} style={{ display: "block" }} />
-          </Link>
-          <nav className="nav-links" aria-label="Main navigation">
-            <a href="#features" className="hide-mobile">Features</a>
-            <a href="#how-it-works" className="hide-mobile">How it works</a>
-            <a href="#faq" className="hide-mobile">FAQ</a>
-            {user ? (
-              <Link href="/dashboard" className="btn btn-primary btn-sm">Open dashboard</Link>
-            ) : (
-              <>
-                <Link href="/login" className="hide-mobile">Log in</Link>
-                <Link href="/signup" className="btn btn-primary btn-sm">Start free</Link>
-              </>
-            )}
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main>
         {/* Hero */}
@@ -253,17 +233,7 @@ export default async function LandingPage() {
         </section>
       </main>
 
-      <footer className="footer">
-        <div className="container" style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-          <div>
-            <div className="nav-logo" style={{ color: "#fff" }}>RenovationLedger</div>
-            <p className="small muted" style={{ marginTop: 8 }}>
-              Project tracking for real estate investors.
-            </p>
-          </div>
-          <p className="small muted">© {new Date().getFullYear()} MJM Solutions Group</p>
-        </div>
-      </footer>
+      <SiteFooter />
     </>
   );
 }
