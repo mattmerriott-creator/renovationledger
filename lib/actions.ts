@@ -483,6 +483,10 @@ export async function deleteComp(fd: FormData) {
 // ---------- Contact ----------
 
 const CONTACT_EMAIL = process.env.CONTACT_EMAIL || "matt@631Digital.com";
+// Resend's shared onboarding@resend.dev sender only delivers to the address
+// the Resend account itself is registered under. Sending to CONTACT_EMAIL
+// requires a verified sending domain — see resend.com/domains.
+const CONTACT_FROM_EMAIL = process.env.CONTACT_FROM_EMAIL || "RenovationLedger Contact <contact@631digital.com>";
 const CONTACT_CATEGORY_LABELS: Record<string, string> = {
   general: "General",
   improvement: "Improvement suggestion",
@@ -512,7 +516,7 @@ export async function submitContactForm(fd: FormData) {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "RenovationLedger Contact <onboarding@resend.dev>",
+        from: CONTACT_FROM_EMAIL,
         to: CONTACT_EMAIL,
         reply_to: email,
         subject: `[RenovationLedger] ${label} from ${name}`,
