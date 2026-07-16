@@ -110,6 +110,16 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
   font-size: 14px;
   margin-bottom: 16px;
 }
+.form-success {
+  background: var(--color-cream-alt);
+  border: 1px solid var(--color-accent);
+  color: var(--color-text-primary);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
 
 /* ---------- Cards ---------- */
 .card {

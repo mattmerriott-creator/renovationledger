@@ -479,3 +479,56 @@ export async function deleteComp(fd: FormData) {
     .run(Number(fd.get("comp_id")), projectId);
   revalidatePath(`/projects/${projectId}/comps`);
 }
+
+// ---------- Contact ----------
+
+const CONTACT_EMAIL = process.env.CONTACT_EMAIL || "matt@631Digital.com";
+const CONTACT_CATEGORY_LABELS: Record<string, string> = {
+  general: "General",
+  improvement: "Improvement suggestion",
+};
+
+export async function submitContactForm(fd: FormData) {
+  const name = str(fd, "name");
+  const email = str(fd, "email");
+  const comment = str(fd, "comment");
+  const category = str(fd, "category") in CONTACT_CATEGORY_LABELS ? str(fd, "category") : "general";
+
+  if (!name || !email || !email.includes("@") || !comment) {
+    redirect("/contact?error=Fill in your name, a valid email, and a message.");
+  }
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.error("Contact form submitted but RESEND_API_KEY is not set.");
+    redirect("/contact?error=Sorry, the contact form isn't working right now. Email matt@631Digital.com directly.");
+  }
+
+  const label = CONTACT_CATEGORY_LABELS[category];
+  let sendOk = false;
+  let errDetail = "";
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "RenovationLedger Contact <onboarding@resend.dev>",
+        to: CONTACT_EMAIL,
+        reply_to: email,
+        subject: `[RenovationLedger] ${label} from ${name}`,
+        text: `From: ${name} <${email}>\nType: ${label}\n\n${comment}`,
+      }),
+    });
+    sendOk = res.ok;
+    if (!sendOk) errDetail = await res.text().catch(() => "");
+  } catch (err) {
+    errDetail = String(err);
+  }
+
+  if (!sendOk) {
+    console.error("Contact form email failed:", errDetail);
+    redirect("/contact?error=Something went wrong sending your message. Try again or email matt@631Digital.com directly.");
+  }
+
+  redirect("/contact?success=1");
+}
