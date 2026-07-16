@@ -8,8 +8,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <>
       <header className="app-nav no-print">
         <div className="container nav-inner">
-          <Link href="/dashboard" className="nav-logo">
-            Renovation<span style={{ color: "var(--color-text-muted)" }}>Ledger</span>
+          <Link href="/dashboard" aria-label="RenovationLedger home">
+            <img src="/logo.png" alt="" width={132} height={32} style={{ display: "block" }} />
           </Link>
           <nav className="nav-links" aria-label="App navigation">
             <Link href="/dashboard" className="hide-mobile">Projects</Link>

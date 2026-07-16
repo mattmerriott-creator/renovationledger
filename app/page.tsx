@@ -104,8 +104,8 @@ export default async function LandingPage() {
 
       <header className="nav">
         <div className="container nav-inner">
-          <Link href="/" className="nav-logo" aria-label="RenovationLedger home">
-            Renovation<span style={{ color: "var(--color-text-muted)" }}>Ledger</span>
+          <Link href="/" aria-label="RenovationLedger home">
+            <img src="/logo.png" alt="" width={132} height={32} style={{ display: "block" }} />
           </Link>
           <nav className="nav-links" aria-label="Main navigation">
             <a href="#features" className="hide-mobile">Features</a>
