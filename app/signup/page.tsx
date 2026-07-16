@@ -17,8 +17,8 @@ export default async function SignupPage({
   return (
     <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ width: "100%", maxWidth: 420 }}>
-        <Link href="/" className="nav-logo" style={{ display: "block", marginBottom: 24 }}>
-          Renovation<span style={{ color: "var(--color-text-muted)" }}>Ledger</span>
+        <Link href="/" aria-label="RenovationLedger home" style={{ display: "block", marginBottom: 24 }}>
+          <img src="/logo.png" alt="" width={132} height={32} style={{ display: "block" }} />
         </Link>
         <div className="card">
           <h1 className="h3" style={{ marginBottom: 4 }}>Create your account</h1>
