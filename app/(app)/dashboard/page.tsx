@@ -4,10 +4,16 @@ import getDb, { Project, getProjectFinancials } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { getDealAnalysis } from "@/lib/analysis";
 import { money, pct, STATUS_LABELS, TYPE_LABELS, STRATEGY_LABELS } from "@/lib/format";
+import PosthogCapture from "@/app/PosthogCapture";
 
 export const metadata: Metadata = { title: "Projects", robots: { index: false } };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>;
+}) {
+  const { welcome } = await searchParams;
   const user = await requireUser();
   const projects = getDb()
     .prepare("SELECT * FROM projects WHERE user_id = ? ORDER BY created_at DESC")
@@ -27,6 +33,7 @@ export default async function DashboardPage() {
 
   return (
     <>
+      <PosthogCapture event="user_signed_up" active={welcome === "1"} />
       <div className="page-head">
         <div>
           <div className="overline">Portfolio</div>
