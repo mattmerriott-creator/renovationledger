@@ -29,7 +29,11 @@ export default async function ProjectOverviewPage({
 
   return (
     <>
-      <PosthogCapture event="first_project_created" active={first === "1"} />
+      <PosthogCapture
+        event="first_project_created"
+        active={first === "1"}
+        properties={{ project_id: project.id }}
+      />
       <div className="grid-4" style={{ marginBottom: 16 }}>
         <div className="card card-dark">
           <div className="stat-number">{money(f.allIn)}</div>
