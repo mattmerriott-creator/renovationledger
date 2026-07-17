@@ -5,15 +5,19 @@ import { updateProject, deleteProject } from "@/lib/actions";
 import { getDealAnalysis } from "@/lib/analysis";
 import { money, pct, dateFmt, LOAN_TYPE_LABELS } from "@/lib/format";
 import ProjectFormFields from "../ProjectForm";
+import PosthogCapture from "@/app/PosthogCapture";
 
 export const metadata: Metadata = { title: "Project overview", robots: { index: false } };
 
 export default async function ProjectOverviewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ first?: string }>;
 }) {
   const { id } = await params;
+  const { first } = await searchParams;
   const user = await requireUser();
   const project = getOwnedProject(Number(id), user.id) as Project;
   const f = getProjectFinancials(project.id);
@@ -25,6 +29,7 @@ export default async function ProjectOverviewPage({
 
   return (
     <>
+      <PosthogCapture event="first_project_created" active={first === "1"} />
       <div className="grid-4" style={{ marginBottom: 16 }}>
         <div className="card card-dark">
           <div className="stat-number">{money(f.allIn)}</div>

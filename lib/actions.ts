@@ -40,7 +40,7 @@ export async function signup(fd: FormData) {
     .prepare("INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)")
     .run(email, name, hashPassword(password));
   await createSession(Number(result.lastInsertRowid));
-  redirect("/dashboard");
+  redirect("/dashboard?welcome=1");
 }
 
 export async function login(fd: FormData) {
@@ -71,6 +71,9 @@ export async function createProject(fd: FormData) {
   if (!name || !address) redirect("/projects/new?error=Project name and address are required.");
 
   const db = getDb();
+  const isFirstProject = (db
+    .prepare("SELECT COUNT(*) c FROM projects WHERE user_id = ?")
+    .get(user.id) as { c: number }).c === 0;
   const result = db
     .prepare(
       `INSERT INTO projects
@@ -112,7 +115,7 @@ export async function createProject(fd: FormData) {
   );
   DEFAULT_HOLDING_COST_TEMPLATE.forEach((name, i) => insertHolding.run(projectId, name, i));
 
-  redirect(`/projects/${projectId}`);
+  redirect(isFirstProject ? `/projects/${projectId}?first=1` : `/projects/${projectId}`);
 }
 
 export async function updateProject(fd: FormData) {
