@@ -243,13 +243,13 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                   <td>{t.vendor}</td>
                   <td>{t.category}</td>
                   <td className="secondary">{t.description}</td>
-                  <td className="num">{t.tx_type === "income" ? "+" : ""}{money2(t.amount)}</td>
+                  <td className="num">{t.tx_type === "return" ? "−" : ""}{money2(t.amount)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={4}>Total expenses</td>
+                <td colSpan={4}>Net total (expenses less returns)</td>
                 <td className="num">{money2(f.spentTotal)}</td>
               </tr>
             </tfoot>

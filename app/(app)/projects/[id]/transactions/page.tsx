@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Fragment } from "react";
 import getDb, { Project, Transaction, TransactionItem, BudgetItem } from "@/lib/db";
 import { PAYMENT_METHODS } from "@/lib/transactions";
 import { requireUser, getOwnedProject } from "@/lib/auth";
-import { addTransaction, deleteTransaction } from "@/lib/actions";
-import { money2, dateFmt } from "@/lib/format";
+import { addTransaction, updateTransaction, deleteTransaction } from "@/lib/actions";
+import { money2 } from "@/lib/format";
 import ReceiptField from "./ReceiptField";
 import TransactionLineItems from "./TransactionLineItems";
+import TransactionRow from "./TransactionRow";
 
 export const metadata: Metadata = { title: "Transactions", robots: { index: false } };
 
@@ -35,8 +35,9 @@ export default async function TransactionsPage({ params }: { params: Promise<{ i
     }
   }
 
-  const spent = txs.filter((t) => t.tx_type === "expense").reduce((s, t) => s + t.amount, 0);
-  const income = txs.filter((t) => t.tx_type === "income").reduce((s, t) => s + t.amount, 0);
+  const expenseTotal = txs.filter((t) => t.tx_type === "expense").reduce((s, t) => s + t.amount, 0);
+  const returnsTotal = txs.filter((t) => t.tx_type === "return").reduce((s, t) => s + t.amount, 0);
+  const netSpent = expenseTotal - returnsTotal;
 
   return (
     <>
@@ -44,7 +45,8 @@ export default async function TransactionsPage({ params }: { params: Promise<{ i
         <div>
           <h2 className="h3">Transactions</h2>
           <p className="small secondary">
-            {money2(spent)} spent · {money2(income)} income · {txs.length} entries ·{" "}
+            {money2(netSpent)} spent{returnsTotal > 0 ? ` (net of ${money2(returnsTotal)} returned)` : ""} ·{" "}
+            {txs.length} entries ·{" "}
             <a href={`/api/export/${project.id}/transactions`} style={{ fontWeight: 600, textDecoration: "underline" }}>
               Download CSV
             </a>
@@ -68,7 +70,7 @@ export default async function TransactionsPage({ params }: { params: Promise<{ i
             <label htmlFor="tx_type">Type</label>
             <select id="tx_type" name="tx_type" defaultValue="expense">
               <option value="expense">Expense</option>
-              <option value="income">Income</option>
+              <option value="return">Return</option>
             </select>
           </div>
         </div>
@@ -91,93 +93,42 @@ export default async function TransactionsPage({ params }: { params: Promise<{ i
           <p className="small">No transactions yet. Log the first receipt above and it lands against the budget automatically.</p>
         </div>
       ) : (
-        <div className="table-wrap card" style={{ padding: 0 }}>
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Vendor</th>
-                <th>Payment</th>
-                <th>Category</th>
-                <th>Description</th>
-                <th className="num">Amount</th>
-                <th>Receipt</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {txs.map((t) => {
-                const items = itemsByTx.get(t.id) || [];
-                const split = items.length > 1;
-                return (
-                  <Fragment key={t.id}>
-                    <tr style={split ? { background: "var(--color-cream-alt)" } : undefined}>
-                      <td style={{ whiteSpace: "nowrap" }}>{dateFmt(t.tx_date)}</td>
-                      <td style={{ fontWeight: split ? 600 : 400 }}>{t.vendor || "—"}</td>
-                      <td className="small secondary">{t.payment_method || "—"}</td>
-                      <td>
-                        {split ? (
-                          <span className="tag tag-dark">Split · {items.length}</span>
-                        ) : t.category ? (
-                          <span className="tag tag-outline">{t.category}</span>
-                        ) : (
-                          <span className="muted">—</span>
-                        )}
-                      </td>
-                      <td className="secondary">{t.description}</td>
-                      <td
-                        className="num"
-                        style={{
-                          fontWeight: split ? 700 : 400,
-                          ...(t.tx_type === "income" ? { color: "#3d7a2f", fontWeight: 600 } : undefined),
-                        }}
-                      >
-                        {t.tx_type === "income" ? "+" : ""}{money2(t.amount)}
-                      </td>
-                      <td>
-                        {t.receipt_file ? (
-                          <a
-                            href={`/api/files/${project.id}/${t.receipt_file}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="icon-cta"
-                            aria-label="View receipt"
-                            title={t.receipt_name}
-                          >
-                            ↗
-                          </a>
-                        ) : (
-                          <span className="muted">—</span>
-                        )}
-                      </td>
-                      <td>
-                        <form action={deleteTransaction}>
-                          <input type="hidden" name="project_id" value={project.id} />
-                          <input type="hidden" name="tx_id" value={t.id} />
-                          <button type="submit" className="btn btn-danger-ghost btn-sm" aria-label="Delete transaction">✕</button>
-                        </form>
-                      </td>
-                    </tr>
-                    {split &&
-                      items.map((it) => (
-                        <tr key={it.id}>
-                          <td></td>
-                          <td colSpan={2} className="small muted" style={{ paddingLeft: 20 }}>↳ {it.description || "—"}</td>
-                          <td>
-                            {it.category ? <span className="tag tag-outline">{it.category}</span> : <span className="muted">—</span>}
-                          </td>
-                          <td></td>
-                          <td className="num small">{money2(it.amount)}</td>
-                          <td></td>
-                          <td></td>
-                        </tr>
-                      ))}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* One hidden form per row so an edit's inputs (which live inside
+              table cells) can submit without nesting a <form> in the table. */}
+          {txs.map((t) => (
+            <form key={t.id} id={`txf${t.id}`} action={updateTransaction} />
+          ))}
+          <div className="table-wrap card" style={{ padding: 0 }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Vendor</th>
+                  <th>Payment</th>
+                  <th>Category</th>
+                  <th>Description</th>
+                  <th className="num">Amount</th>
+                  <th>Receipt</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {txs.map((t) => (
+                  <TransactionRow
+                    key={t.id}
+                    t={t}
+                    items={itemsByTx.get(t.id) || []}
+                    categories={categories}
+                    projectId={project.id}
+                    formId={`txf${t.id}`}
+                    deleteAction={deleteTransaction}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </>
   );

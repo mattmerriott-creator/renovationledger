@@ -8,15 +8,40 @@ function moneyFmt(n: number) {
 
 let nextRowId = 1;
 
+export type TxLineItemValue = { category: string; description: string; amount: number };
+
 // Line items for one transaction. One receipt, multiple items, each with its
 // own budget category — the transaction total is always the sum of these.
-// The first row carries fixed ids (item_category_0 / item_amount_0 / etc.)
-// so ReceiptField's scan can prefill it.
-export default function TransactionLineItems({ categories }: { categories: string[] }) {
-  const [rows, setRows] = useState<number[]>(() => [nextRowId++]);
-  const [amounts, setAmounts] = useState<Record<number, number>>({});
+// Used both for the "Log a transaction" form (nested directly inside its own
+// <form>, no formId) and for editing an existing transaction inline in the
+// table (formId binds these inputs to a <form> that lives elsewhere in the
+// DOM, since a table row can't itself contain the enclosing <form>).
+export default function TransactionLineItems({
+  categories,
+  initialItems,
+  formId,
+}: {
+  categories: string[];
+  initialItems?: TxLineItemValue[];
+  formId?: string;
+}) {
+  const [rows, setRows] = useState<number[]>(() =>
+    (initialItems && initialItems.length > 0 ? initialItems : [{ category: "", description: "", amount: 0 }]).map(
+      () => nextRowId++
+    )
+  );
+  const [amounts, setAmounts] = useState<Record<number, number>>(() => {
+    const init: Record<number, number> = {};
+    (initialItems || []).forEach((it, i) => {
+      if (rows[i] !== undefined) init[rows[i]] = it.amount;
+    });
+    return init;
+  });
 
   const total = Object.values(amounts).reduce((s, n) => s + (n || 0), 0);
+  // First render's `rows` was built before this closure captured its own ids,
+  // so re-derive the initial value for each row by position, not by identity.
+  const initialByPosition = initialItems || [];
 
   function addRow() {
     setRows((r) => [...r, nextRowId++]);
@@ -43,51 +68,59 @@ export default function TransactionLineItems({ categories }: { categories: strin
         One row per item on the receipt. Split across categories if it's not all one thing —
         the transaction total is the sum below.
       </p>
-      {rows.map((rowId, i) => (
-        <div
-          key={rowId}
-          style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}
-        >
-          <select
-            id={i === 0 ? "item_category_0" : undefined}
-            name="item_category"
-            defaultValue=""
-            style={{ flex: "1 1 160px", fontSize: 14, padding: "10px 12px" }}
-            aria-label="Item category"
+      {rows.map((rowId, i) => {
+        const initial = initialByPosition[i];
+        return (
+          <div
+            key={rowId}
+            style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}
           >
-            <option value="">Uncategorized</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-          <input
-            id={i === 0 ? "item_description_0" : undefined}
-            name="item_description"
-            placeholder="What was it"
-            style={{ flex: "2 1 200px", fontSize: 14, padding: "10px 12px" }}
-            aria-label="Item description"
-          />
-          <input
-            id={i === 0 ? "item_amount_0" : undefined}
-            name="item_amount"
-            inputMode="decimal"
-            placeholder="0.00"
-            onChange={(e) => setAmounts((a) => ({ ...a, [rowId]: parseAmount(e.target.value) }))}
-            style={{ flex: "0 1 110px", fontSize: 14, padding: "10px 12px", textAlign: "right" }}
-            aria-label="Item amount"
-          />
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => removeRow(rowId)}
-            disabled={rows.length === 1}
-            aria-label="Remove item"
-            style={{ visibility: rows.length === 1 ? "hidden" : "visible" }}
-          >
-            ✕
-          </button>
-        </div>
-      ))}
+            <select
+              id={!formId && i === 0 ? "item_category_0" : undefined}
+              form={formId}
+              name="item_category"
+              defaultValue={initial?.category || ""}
+              style={{ flex: "1 1 160px", fontSize: 14, padding: "10px 12px" }}
+              aria-label="Item category"
+            >
+              <option value="">Uncategorized</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <input
+              id={!formId && i === 0 ? "item_description_0" : undefined}
+              form={formId}
+              name="item_description"
+              defaultValue={initial?.description || ""}
+              placeholder="What was it"
+              style={{ flex: "2 1 200px", fontSize: 14, padding: "10px 12px" }}
+              aria-label="Item description"
+            />
+            <input
+              id={!formId && i === 0 ? "item_amount_0" : undefined}
+              form={formId}
+              name="item_amount"
+              inputMode="decimal"
+              defaultValue={initial?.amount || ""}
+              placeholder="0.00"
+              onChange={(e) => setAmounts((a) => ({ ...a, [rowId]: parseAmount(e.target.value) }))}
+              style={{ flex: "0 1 110px", fontSize: 14, padding: "10px 12px", textAlign: "right" }}
+              aria-label="Item amount"
+            />
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => removeRow(rowId)}
+              disabled={rows.length === 1}
+              aria-label="Remove item"
+              style={{ visibility: rows.length === 1 ? "hidden" : "visible" }}
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
         <button type="button" className="btn btn-outline btn-sm" onClick={addRow}>
           + Add another item
