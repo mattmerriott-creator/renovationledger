@@ -267,6 +267,32 @@ export async function deleteHoldingCostItem(fd: FormData) {
 // A transaction is a receipt: one vendor, one date, one payment method, one
 // or more line items. Each line item can carry its own budget category, and
 // the transaction's total is always the sum of its line items.
+type TxLineItem = { category: string; description: string; amount: number };
+
+function parseTransactionItems(fd: FormData): TxLineItem[] {
+  const itemCategories = fd.getAll("item_category").map(String);
+  const itemDescriptions = fd.getAll("item_description").map(String);
+  const itemAmounts = fd.getAll("item_amount").map((v) => {
+    const n = parseFloat(String(v).replace(/[$,]/g, ""));
+    return isNaN(n) ? 0 : n;
+  });
+  return itemCategories
+    .map((category, i) => ({
+      category: category.trim(),
+      description: (itemDescriptions[i] || "").trim(),
+      amount: itemAmounts[i] || 0,
+    }))
+    .filter((it) => it.amount > 0 || it.category || it.description);
+}
+
+function summarizeItems(items: TxLineItem[]) {
+  const total = Math.round(items.reduce((s, it) => s + it.amount, 0) * 100) / 100;
+  const distinctCategories = [...new Set(items.map((it) => it.category).filter(Boolean))];
+  const headerCategory = distinctCategories.length === 1 ? distinctCategories[0] : distinctCategories.length > 1 ? "Split" : "";
+  const headerDescription = items.length === 1 ? items[0].description : `${items.length} items`;
+  return { total, headerCategory, headerDescription };
+}
+
 export async function addTransaction(fd: FormData) {
   const user = await requireUser();
   const projectId = Number(fd.get("project_id"));
@@ -283,26 +309,9 @@ export async function addTransaction(fd: FormData) {
     }
   }
 
-  const itemCategories = fd.getAll("item_category").map(String);
-  const itemDescriptions = fd.getAll("item_description").map(String);
-  const itemAmounts = fd.getAll("item_amount").map((v) => {
-    const n = parseFloat(String(v).replace(/[$,]/g, ""));
-    return isNaN(n) ? 0 : n;
-  });
-  const items = itemCategories
-    .map((category, i) => ({
-      category: category.trim(),
-      description: (itemDescriptions[i] || "").trim(),
-      amount: itemAmounts[i] || 0,
-    }))
-    .filter((it) => it.amount > 0 || it.category || it.description);
-
+  const items = parseTransactionItems(fd);
   if (items.length === 0) redirect(`/projects/${projectId}/transactions`);
-
-  const total = Math.round(items.reduce((s, it) => s + it.amount, 0) * 100) / 100;
-  const distinctCategories = [...new Set(items.map((it) => it.category).filter(Boolean))];
-  const headerCategory = distinctCategories.length === 1 ? distinctCategories[0] : distinctCategories.length > 1 ? "Split" : "";
-  const headerDescription = items.length === 1 ? items[0].description : `${items.length} items`;
+  const { total, headerCategory, headerDescription } = summarizeItems(items);
 
   const db = getDb();
   const result = db
@@ -314,11 +323,49 @@ export async function addTransaction(fd: FormData) {
       projectId,
       str(fd, "tx_date") || new Date().toISOString().slice(0, 10),
       str(fd, "vendor"), headerCategory, headerDescription,
-      str(fd, "tx_type") === "income" ? "income" : "expense",
+      str(fd, "tx_type") === "return" ? "return" : "expense",
       total, str(fd, "payment_method"),
       receiptFile, receiptName
     );
   const txId = Number(result.lastInsertRowid);
+  const insertItem = db.prepare(
+    "INSERT INTO transaction_items (transaction_id, category, description, amount) VALUES (?, ?, ?, ?)"
+  );
+  for (const it of items) insertItem.run(txId, it.category, it.description, it.amount);
+
+  revalidatePath(`/projects/${projectId}/transactions`);
+}
+
+// Edits a transaction's date/vendor/type/payment method and replaces its line
+// items wholesale. The receipt file, once attached, isn't changed here.
+export async function updateTransaction(fd: FormData) {
+  const user = await requireUser();
+  const projectId = Number(fd.get("project_id"));
+  if (!getOwnedProject(projectId, user.id)) redirect("/dashboard");
+  const txId = Number(fd.get("tx_id"));
+
+  const db = getDb();
+  const existing = db
+    .prepare("SELECT id FROM transactions WHERE id = ? AND project_id = ?")
+    .get(txId, projectId);
+  if (!existing) redirect(`/projects/${projectId}/transactions`);
+
+  const items = parseTransactionItems(fd);
+  if (items.length === 0) redirect(`/projects/${projectId}/transactions`);
+  const { total, headerCategory, headerDescription } = summarizeItems(items);
+
+  db.prepare(
+    `UPDATE transactions SET tx_date = ?, vendor = ?, category = ?, description = ?, tx_type = ?, amount = ?, payment_method = ?
+     WHERE id = ? AND project_id = ?`
+  ).run(
+    str(fd, "tx_date") || new Date().toISOString().slice(0, 10),
+    str(fd, "vendor"), headerCategory, headerDescription,
+    str(fd, "tx_type") === "return" ? "return" : "expense",
+    total, str(fd, "payment_method"),
+    txId, projectId
+  );
+
+  db.prepare("DELETE FROM transaction_items WHERE transaction_id = ?").run(txId);
   const insertItem = db.prepare(
     "INSERT INTO transaction_items (transaction_id, category, description, amount) VALUES (?, ?, ?, ?)"
   );

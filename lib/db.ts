@@ -184,6 +184,11 @@ function migrate(db: Database.Database) {
     for (const t of DEFAULT_BUDGET_TEMPLATE) setUnit.run(t.unit, t.category);
   }
 
+  // One-time rename: transactions logged as "income" become "return" — a
+  // return credits back against project spend instead of being tracked as a
+  // separate income bucket. Safe to run every startup; a no-op after the first.
+  db.exec("UPDATE transactions SET tx_type = 'return' WHERE tx_type = 'income'");
+
   // One-time backfill: transactions created before line items existed get a
   // single line item mirroring their own category/description/amount, so
   // budget actuals (which now read from transaction_items) don't go to zero
@@ -300,7 +305,7 @@ export type Transaction = {
   vendor: string;
   category: string;
   description: string;
-  tx_type: "expense" | "income";
+  tx_type: "expense" | "return";
   amount: number;
   payment_method: string;
   receipt_file: string;
@@ -359,7 +364,7 @@ export type ManualComp = {
 export type ProjectFinancials = {
   budgetTotal: number;
   spentTotal: number;
-  incomeTotal: number;
+  returnsTotal: number;
   drawsFunded: number;
   drawsRequested: number;
   allIn: number; // purchase + spent
@@ -379,11 +384,14 @@ export function getProjectFinancials(projectId: number): ProjectFinancials {
        SELECT DISTINCT parent_id FROM budget_items WHERE parent_id IS NOT NULL AND project_id = ?
      )`
   ).get(projectId, projectId) as { t: number }).t;
+  // A return credits back against spend, so it's netted out of spentTotal
+  // rather than tracked as separate income.
   const spentTotal = (d.prepare(
-    "SELECT COALESCE(SUM(amount),0) t FROM transactions WHERE project_id = ? AND tx_type = 'expense'"
+    `SELECT COALESCE(SUM(CASE WHEN tx_type = 'return' THEN -amount ELSE amount END),0) t
+     FROM transactions WHERE project_id = ? AND tx_type IN ('expense','return')`
   ).get(projectId) as { t: number }).t;
-  const incomeTotal = (d.prepare(
-    "SELECT COALESCE(SUM(amount),0) t FROM transactions WHERE project_id = ? AND tx_type = 'income'"
+  const returnsTotal = (d.prepare(
+    "SELECT COALESCE(SUM(amount),0) t FROM transactions WHERE project_id = ? AND tx_type = 'return'"
   ).get(projectId) as { t: number }).t;
   const drawsFunded = (d.prepare(
     "SELECT COALESCE(SUM(amount),0) t FROM draws WHERE project_id = ? AND status = 'funded'"
@@ -392,12 +400,13 @@ export function getProjectFinancials(projectId: number): ProjectFinancials {
     "SELECT COALESCE(SUM(amount),0) t FROM draws WHERE project_id = ? AND status != 'funded'"
   ).get(projectId) as { t: number }).t;
   // Actuals are attributed at the line-item level, not the parent transaction —
-  // a single receipt can split across several budget categories.
+  // a single receipt can split across several budget categories. A return's
+  // line items subtract back out of the category they were returned against.
   const rows = d.prepare(
-    `SELECT ti.category, COALESCE(SUM(ti.amount),0) t
+    `SELECT ti.category, COALESCE(SUM(CASE WHEN tr.tx_type = 'return' THEN -ti.amount ELSE ti.amount END),0) t
      FROM transaction_items ti
      JOIN transactions tr ON tr.id = ti.transaction_id
-     WHERE tr.project_id = ? AND tr.tx_type = 'expense'
+     WHERE tr.project_id = ? AND tr.tx_type IN ('expense','return')
      GROUP BY ti.category`
   ).all(projectId) as { category: string; t: number }[];
   const spentByCategory: Record<string, number> = {};
@@ -407,7 +416,7 @@ export function getProjectFinancials(projectId: number): ProjectFinancials {
   return {
     budgetTotal,
     spentTotal,
-    incomeTotal,
+    returnsTotal,
     drawsFunded,
     drawsRequested,
     allIn,

@@ -130,7 +130,7 @@ export default async function ProjectOverviewPage({
                 <td className="muted">Holding costs ({a.holdMonths} mo.)</td>
                 <td className="num">{money(a.holdingCostTotal)}</td>
               </tr>
-              <tr><td className="muted">Income logged</td><td className="num">{money(f.incomeTotal)}</td></tr>
+              <tr><td className="muted">Returns credited</td><td className="num">{money(f.returnsTotal)}</td></tr>
               <tr>
                 <td style={{ fontWeight: 700 }}>{a.exitStrategy === "flip" ? "Projected net profit" : "Cash left in deal"}</td>
                 <td className="num" style={{ fontWeight: 700 }}>
