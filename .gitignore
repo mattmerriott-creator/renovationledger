@@ -11,3 +11,8 @@ tsconfig.tsbuildinfo
 # HyperFrames video project
 videos/renders/
 videos/.hyperframes/
+
+# TikTok edit working folders (raw and rendered video); keep the README and music library
+tiktok/*
+!tiktok/README.md
+!tiktok/music/

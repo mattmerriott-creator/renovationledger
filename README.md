@@ -73,3 +73,10 @@ npm run render   # render to MP4 in videos/renders/
 ```
 
 With Claude Code, just ask: "Using /hyperframes, make a 15-second promo for RenovationLedger." The skills are checked in under `.claude/skills/`.
+
+## TikTok edits
+
+The `tiktok-edit` Claude skill (`.claude/skills/tiktok-edit/`) turns a raw phone video plus a few
+lines of context into a post-ready vertical video: tight cuts, Hormozi-style captions, hook,
+number callouts, zooms, music and the I Buy Houses end card. Say "/tiktok-edit" with a video
+attached or a Google Drive file name. See `tiktok/README.md`.
