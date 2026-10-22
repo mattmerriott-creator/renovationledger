@@ -7,3 +7,7 @@ buildledger.db-wal
 uploads/
 .DS_Store
 tsconfig.tsbuildinfo
+
+# HyperFrames video project
+videos/renders/
+videos/.hyperframes/

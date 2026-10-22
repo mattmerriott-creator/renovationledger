@@ -60,3 +60,16 @@ The pieces are already in place:
 ## Stack
 
 Next.js 15 (App Router, server actions), SQLite via better-sqlite3, no other services. Auth is email + password (scrypt-hashed) with 30-day session cookies. Design follows the Spaciaz design system.
+
+## Videos (HyperFrames)
+
+`videos/` is a [HyperFrames](https://github.com/heygen-com/hyperframes) project: videos written as HTML + GSAP animations and rendered to MP4. Needs Node 22+ and FFmpeg (`brew install ffmpeg`).
+
+```bash
+cd videos
+npm run dev      # live preview in the browser
+npm run check    # validate the composition
+npm run render   # render to MP4 in videos/renders/
+```
+
+With Claude Code, just ask: "Using /hyperframes, make a 15-second promo for RenovationLedger." The skills are checked in under `.claude/skills/`.
