@@ -17,8 +17,9 @@ sound is available for business use.
 
 ## 1. Royalty-free bed
 
-Library: `tiktok/music/` in the repo (see its README). Each track has a line in
-`tiktok/music/tracks.json`: file, mood, bpm, source, license.
+Library: `tiktok/music/` (in the renovationledger repo, see its README). Each track has a line in
+`tiktok/music/tracks.json`: file, mood, bpm, source, license. Outside the repo, ask Matt for
+tracks or a Drive folder of them.
 
 Pick by type:
 | Type | Mood | Volume |

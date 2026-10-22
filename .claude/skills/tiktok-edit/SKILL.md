@@ -10,8 +10,10 @@ the render rules; read it if you change the composition by hand). Brand rules: `
 Per-type recipes: `references/content-types.md`. Music and trending sounds: `references/music.md`.
 Post copy: `references/post-copy.md`.
 
-Scripts live in `.claude/skills/tiktok-edit/scripts/` (call it `$K`). Work happens in
-`tiktok/<slug>/` at the repo root (`$P`; slug like `2026-10-22-elm-st-rehab`). Media there is gitignored.
+Scripts live in the `scripts/` folder next to this file (call it `$K`; in the renovationledger
+repo that's `.claude/skills/tiktok-edit/scripts`). Work happens in `tiktok/<slug>/` under the
+working directory (`$P`; slug like `2026-10-22-elm-st-rehab`). In the repo, media there is
+gitignored. Needs Node 22+, Python 3, ffmpeg and network access to npm and GitHub.
 
 ## 0. Setup (once per session, ~1 min)
 
