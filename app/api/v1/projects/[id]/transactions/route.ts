@@ -60,7 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const headerCategory =
     distinctCategories.length === 1 ? distinctCategories[0] : distinctCategories.length > 1 ? "Split" : "";
   const headerDescription = items.length === 1 ? items[0].description : `${items.length} items`;
-  const txType = body.tx_type === "income" ? "income" : "expense";
+  const txType = body.tx_type === "return" ? "return" : "expense";
   const txDate = asString(body.tx_date) || new Date().toISOString().slice(0, 10);
 
   const db = getDb();
