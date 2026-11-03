@@ -13,6 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </Link>
           <nav className="nav-links" aria-label="App navigation">
             <Link href="/dashboard" className="hide-mobile">Projects</Link>
+            <Link href="/settings" className="hide-mobile">Settings</Link>
             {isAdmin(user) && <Link href="/admin/users" className="hide-mobile">Users</Link>}
             <span className="hide-mobile muted small">{user.name}</span>
             <form action={logout}>

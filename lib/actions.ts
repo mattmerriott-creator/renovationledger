@@ -2,16 +2,22 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import getDb, { Photo, Transaction } from "./db";
-import { DEFAULT_BUDGET_TEMPLATE, DEFAULT_HOLDING_COST_TEMPLATE, BUDGET_UNITS } from "./budget";
+import { DEFAULT_HOLDING_COST_TEMPLATE, BUDGET_UNITS } from "./budget";
 import {
   hashPassword,
   verifyPassword,
   createSession,
   destroySession,
   requireUser,
+  requireAdmin,
   getOwnedProject,
+  canUseApi,
+  createApiKey,
+  revokeApiKey,
 } from "./auth";
+import { createProjectRecord } from "./projects";
 import { saveUpload, deleteUpload, deleteProjectUploads } from "./files";
 
 function str(fd: FormData, key: string): string {
@@ -70,50 +76,24 @@ export async function createProject(fd: FormData) {
   const address = str(fd, "address");
   if (!name || !address) redirect("/projects/new?error=Project name and address are required.");
 
-  const db = getDb();
-  const isFirstProject = (db
-    .prepare("SELECT COUNT(*) c FROM projects WHERE user_id = ?")
-    .get(user.id) as { c: number }).c === 0;
-  const result = db
-    .prepare(
-      `INSERT INTO projects
-        (user_id, name, address, city, state, zip, property_type, strategy, status,
-         purchase_price, arv, loan_amount, lender_name, units, beds, baths, sqft,
-         start_date, target_end_date, notes,
-         exit_strategy, loan_type, loan_term_months, interest_rate, points, down_payment,
-         purchase_closing_costs, realtor_fee_pct, selling_closing_costs, refinance_ltv_pct,
-         refinance_closing_costs, exit_date, monthly_rent, monthly_operating_expenses,
-         refinance_rate, refinance_term_months)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-    )
-    .run(
-      user.id, name, address, str(fd, "city"), str(fd, "state").toUpperCase(), str(fd, "zip"),
-      str(fd, "property_type") || "single_family",
-      str(fd, "strategy") || "rehab",
-      str(fd, "status") || "planning",
-      num(fd, "purchase_price"), num(fd, "arv"), num(fd, "loan_amount"), str(fd, "lender_name"),
-      Math.max(1, Math.round(num(fd, "units"))), num(fd, "beds"), num(fd, "baths"), Math.round(num(fd, "sqft")),
-      str(fd, "start_date"), str(fd, "target_end_date"), str(fd, "notes"),
-      str(fd, "exit_strategy") || "flip", str(fd, "loan_type"), Math.round(num(fd, "loan_term_months")),
-      num(fd, "interest_rate"), num(fd, "points"), num(fd, "down_payment"),
-      num(fd, "purchase_closing_costs"), num(fd, "realtor_fee_pct") || 6, num(fd, "selling_closing_costs"),
-      num(fd, "refinance_ltv_pct") || 75, num(fd, "refinance_closing_costs"), str(fd, "exit_date"),
-      num(fd, "monthly_rent"), num(fd, "monthly_operating_expenses"),
-      num(fd, "refinance_rate"), Math.round(num(fd, "refinance_term_months")) || 360
-    );
-  const projectId = Number(result.lastInsertRowid);
-
-  // Seed the default budget template at $0 so the budget page is ready to fill in
-  const insert = db.prepare(
-    "INSERT INTO budget_items (project_id, category, amount, sort, unit) VALUES (?, ?, 0, ?, ?)"
-  );
-  DEFAULT_BUDGET_TEMPLATE.forEach((t, i) => insert.run(projectId, t.category, i, t.unit));
-
-  // Seed the default holding-cost template at $0/month, same idea as the budget.
-  const insertHolding = db.prepare(
-    "INSERT INTO holding_cost_items (project_id, name, monthly_amount, sort) VALUES (?, ?, 0, ?)"
-  );
-  DEFAULT_HOLDING_COST_TEMPLATE.forEach((name, i) => insertHolding.run(projectId, name, i));
+  const { projectId, isFirstProject } = createProjectRecord(user.id, {
+    name, address,
+    city: str(fd, "city"), state: str(fd, "state"), zip: str(fd, "zip"),
+    property_type: str(fd, "property_type"), strategy: str(fd, "strategy"), status: str(fd, "status"),
+    purchase_price: num(fd, "purchase_price"), arv: num(fd, "arv"), loan_amount: num(fd, "loan_amount"),
+    lender_name: str(fd, "lender_name"),
+    units: num(fd, "units"), beds: num(fd, "beds"), baths: num(fd, "baths"), sqft: num(fd, "sqft"),
+    start_date: str(fd, "start_date"), target_end_date: str(fd, "target_end_date"), notes: str(fd, "notes"),
+    exit_strategy: str(fd, "exit_strategy"), loan_type: str(fd, "loan_type"),
+    loan_term_months: num(fd, "loan_term_months"),
+    interest_rate: num(fd, "interest_rate"), points: num(fd, "points"), down_payment: num(fd, "down_payment"),
+    purchase_closing_costs: num(fd, "purchase_closing_costs"), realtor_fee_pct: num(fd, "realtor_fee_pct"),
+    selling_closing_costs: num(fd, "selling_closing_costs"),
+    refinance_ltv_pct: num(fd, "refinance_ltv_pct"), refinance_closing_costs: num(fd, "refinance_closing_costs"),
+    exit_date: str(fd, "exit_date"),
+    monthly_rent: num(fd, "monthly_rent"), monthly_operating_expenses: num(fd, "monthly_operating_expenses"),
+    refinance_rate: num(fd, "refinance_rate"), refinance_term_months: num(fd, "refinance_term_months"),
+  });
 
   redirect(isFirstProject ? `/projects/${projectId}?first=1` : `/projects/${projectId}`);
 }
@@ -538,4 +518,44 @@ export async function submitContactForm(fd: FormData) {
   }
 
   redirect("/contact?success=1");
+}
+
+// ---------- API keys ----------
+
+export async function generateApiKey(fd: FormData) {
+  const user = await requireUser();
+  if (!canUseApi(user)) redirect("/settings?error=API access requires a paid plan.");
+
+  const { key } = createApiKey(user.id, str(fd, "name"));
+  revalidatePath("/settings");
+
+  // The raw key is only ever available right here. It's handed to the
+  // settings page via a short-lived httpOnly cookie rather than a query
+  // param, so it never lands in the URL, browser history, or server logs.
+  const store = await cookies();
+  store.set("bl_new_api_key", key, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60,
+    path: "/settings",
+  });
+  redirect("/settings");
+}
+
+export async function deleteApiKey(fd: FormData) {
+  const user = await requireUser();
+  revokeApiKey(user.id, Number(fd.get("key_id")));
+  revalidatePath("/settings");
+}
+
+// ---------- Admin ----------
+
+// Manual plan switch until Stripe billing is wired up — see README.
+export async function updateUserPlan(fd: FormData) {
+  await requireAdmin();
+  const userId = Number(fd.get("user_id"));
+  const plan = str(fd, "plan") || "free";
+  getDb().prepare("UPDATE users SET plan = ? WHERE id = ?").run(plan, userId);
+  revalidatePath("/admin/users");
 }

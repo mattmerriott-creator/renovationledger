@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import getDb from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { updateUserPlan } from "@/lib/actions";
 import { dateFmt } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Users", robots: { index: false } };
@@ -64,7 +65,18 @@ export default async function AdminUsersPage() {
                   <td style={{ fontWeight: 500 }}>{u.email}</td>
                   <td>{u.name}</td>
                   <td>
-                    <span className={u.plan === "free" ? "tag tag-outline" : "tag tag-accent"}>{u.plan}</span>
+                    <form action={updateUserPlan} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <input type="hidden" name="user_id" value={u.id} />
+                      <select
+                        name="plan"
+                        defaultValue={u.plan}
+                        style={{ width: "auto", padding: "4px 8px", fontSize: 13 }}
+                      >
+                        <option value="free">free</option>
+                        <option value="pro">pro</option>
+                      </select>
+                      <button type="submit" className="btn btn-outline btn-sm">Save</button>
+                    </form>
                   </td>
                   <td className="num">{u.project_count}</td>
                   <td style={{ whiteSpace: "nowrap" }}>{dateFmt(u.created_at.slice(0, 10))}</td>

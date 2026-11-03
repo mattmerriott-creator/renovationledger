@@ -43,6 +43,12 @@ Every project has a Report tab:
 - One-page lender report: deal summary, work-completed rundown (your summary plus per-category scope and cost), budget vs. actual, draw schedule, transaction ledger, and property photos. Print or save as PDF from the browser.
 - CSV downloads for budget, transactions, and draws.
 
+## API access (paid plans)
+
+Pro accounts can connect an LLM or their own tools under Settings → API access: generate a key (`rl_live_...`, shown once), send it as `Authorization: Bearer <key>` on requests to `/api/v1/...`, revoke it any time. Free accounts see an upgrade notice instead — there's no billing wired up yet, so an admin grants access manually from `/admin/users` (see Paywall below).
+
+Covers projects (list/create/get/update) and, per project, budget items (list/add/update/delete) and transactions (list/add). Project deletion and photo uploads aren't exposed via the API; those stay UI-only. `lib/api-auth.ts` has the auth/ownership checks shared by every route under `app/api/v1/`.
+
 ## Going live
 
 1. Push this folder to GitHub
@@ -54,6 +60,7 @@ Every project has a Report tab:
 
 The pieces are already in place:
 - Every user has a `plan` column in the database, currently `'free'`
+- API access (above) already gates on `plan !== 'free'` — until Stripe is wired up, an admin flips a user to `pro` from the Plan column on `/admin/users`
 - Add Stripe Checkout: on successful subscription webhook, set `plan = 'pro'`
 - Gate project creation in `lib/actions.ts` (`createProject`) on the plan
 
