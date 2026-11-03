@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import crypto from "crypto";
-import getDb, { User } from "./db";
+import getDb, { ApiKey, User } from "./db";
 
 const SESSION_COOKIE = "bl_session";
 const SESSION_DAYS = 30;
@@ -86,4 +86,59 @@ export function getOwnedProject(projectId: number, userId: number) {
   return getDb()
     .prepare("SELECT * FROM projects WHERE id = ? AND user_id = ?")
     .get(projectId, userId);
+}
+
+// -- API keys (paid-plan REST API access) --
+
+// Any plan other than the 'free' default can use the API. There's no
+// billing wired up yet — an admin flips a user's plan from /admin/users.
+export function canUseApi(user: Pick<User, "plan">): boolean {
+  return user.plan !== "free";
+}
+
+function hashApiKey(key: string): string {
+  // Unlike a password, an API key is already high-entropy (192 random bits),
+  // so a fast hash is fine here — scrypt's slowness defends against guessing
+  // a low-entropy secret, which doesn't apply.
+  return crypto.createHash("sha256").update(key).digest("hex");
+}
+
+// Returns the raw key alongside its stored record. The raw key is shown to
+// the user exactly once, here — only its hash and a short display prefix
+// are persisted, so it can never be recovered after this call returns.
+export function createApiKey(userId: number, name: string): { key: string; record: ApiKey } {
+  const key = `rl_live_${crypto.randomBytes(24).toString("hex")}`;
+  const prefix = key.slice(0, 14);
+  const result = getDb()
+    .prepare("INSERT INTO api_keys (user_id, name, key_prefix, key_hash) VALUES (?, ?, ?, ?)")
+    .run(userId, name || "API key", prefix, hashApiKey(key));
+  const record = getDb()
+    .prepare("SELECT id, user_id, name, key_prefix, created_at, last_used_at FROM api_keys WHERE id = ?")
+    .get(Number(result.lastInsertRowid)) as ApiKey;
+  return { key, record };
+}
+
+export function listApiKeys(userId: number): ApiKey[] {
+  return getDb()
+    .prepare(
+      "SELECT id, user_id, name, key_prefix, created_at, last_used_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC"
+    )
+    .all(userId) as ApiKey[];
+}
+
+export function revokeApiKey(userId: number, keyId: number) {
+  getDb().prepare("DELETE FROM api_keys WHERE id = ? AND user_id = ?").run(keyId, userId);
+}
+
+// Looks up the user behind a raw API key sent on an incoming request, and
+// records the hit. Returns null for an unknown, revoked, or malformed key.
+export function getUserFromApiKey(key: string): User | null {
+  if (!key.startsWith("rl_")) return null;
+  const hash = hashApiKey(key);
+  const user = getDb()
+    .prepare("SELECT u.* FROM api_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash = ?")
+    .get(hash) as User | undefined;
+  if (!user) return null;
+  getDb().prepare("UPDATE api_keys SET last_used_at = datetime('now') WHERE key_hash = ?").run(hash);
+  return user;
 }

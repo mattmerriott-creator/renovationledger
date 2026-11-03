@@ -134,6 +134,19 @@ function migrate(db: Database.Database) {
       sort INTEGER NOT NULL DEFAULT 0
     );
 
+    -- A user-issued credential for the REST API (paid-plan feature). Only
+    -- a salted hash of the key is stored; the raw key is shown once, at
+    -- creation, and never persisted.
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL DEFAULT '',
+      key_prefix TEXT NOT NULL,
+      key_hash TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_used_at TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_photos_project ON photos(project_id);
     CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
     CREATE INDEX IF NOT EXISTS idx_budget_project ON budget_items(project_id);
@@ -142,6 +155,7 @@ function migrate(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_comps_project ON comps(project_id);
     CREATE INDEX IF NOT EXISTS idx_tx_items_tx ON transaction_items(transaction_id);
     CREATE INDEX IF NOT EXISTS idx_holding_project ON holding_cost_items(project_id);
+    CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
   `);
 
   addColumnIfMissing(db, "transactions", "receipt_file", "TEXT NOT NULL DEFAULT ''");
@@ -340,6 +354,17 @@ export type Draw = {
   amount: number;
   status: "requested" | "approved" | "funded";
   notes: string;
+};
+
+// key_hash is deliberately left off this type — it's never read back out
+// of the database into application code, only matched against on lookup.
+export type ApiKey = {
+  id: number;
+  user_id: number;
+  name: string;
+  key_prefix: string;
+  created_at: string;
+  last_used_at: string | null;
 };
 
 export type ManualComp = {
