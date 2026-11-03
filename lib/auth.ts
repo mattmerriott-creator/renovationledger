@@ -50,7 +50,16 @@ export async function getCurrentUser(): Promise<User | null> {
        WHERE s.token = ? AND s.expires_at > datetime('now')`
     )
     .get(token) as User | undefined;
-  return row ?? null;
+  if (!row) return null;
+
+  // The app's owner (ADMIN_EMAIL) always has paid-plan access — self-heals
+  // on first load after this check was added, or after any accidental
+  // downgrade, so it never needs a manual flip on /admin/users.
+  if (row.plan !== "pro" && isAdmin(row)) {
+    getDb().prepare("UPDATE users SET plan = 'pro' WHERE id = ?").run(row.id);
+    row.plan = "pro";
+  }
+  return row;
 }
 
 export async function requireUser(): Promise<User> {
@@ -91,7 +100,8 @@ export function getOwnedProject(projectId: number, userId: number) {
 // -- API keys (paid-plan REST API access) --
 
 // Any plan other than the 'free' default can use the API. There's no
-// billing wired up yet — an admin flips a user's plan from /admin/users.
+// billing wired up yet — the app owner is always 'pro' (see getCurrentUser);
+// everyone else is flipped to 'pro' manually from /admin/users.
 export function canUseApi(user: Pick<User, "plan">): boolean {
   return user.plan !== "free";
 }

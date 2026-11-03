@@ -65,7 +65,17 @@ export default async function AdminUsersPage() {
                   <td style={{ fontWeight: 500 }}>{u.email}</td>
                   <td>{u.name}</td>
                   <td>
-                    <form action={updateUserPlan} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    {/* Keyed on plan: React resets an uncontrolled form's
+                        fields to their original defaultValue once its action
+                        completes, so without this the dropdown snaps back to
+                        the old plan right after a successful save. Keying it
+                        on the value that just changed forces a remount with
+                        the new one instead. */}
+                    <form
+                      key={u.plan}
+                      action={updateUserPlan}
+                      style={{ display: "flex", gap: 6, alignItems: "center" }}
+                    >
                       <input type="hidden" name="user_id" value={u.id} />
                       <select
                         name="plan"
