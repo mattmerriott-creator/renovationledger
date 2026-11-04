@@ -47,7 +47,7 @@ Every project has a Report tab:
 
 Pro accounts can connect an LLM or their own tools under Settings → API access: generate a key (`rl_live_...`, shown once), send it as `Authorization: Bearer <key>` on requests to `/api/v1/...`, revoke it any time. Free accounts see an upgrade notice instead — there's no billing wired up yet, so an admin grants access manually from `/admin/users` (see Paywall below).
 
-Covers projects (list/create/get/update) and, per project, budget items (list/add/update/delete) and transactions (list/add). Project deletion and photo uploads aren't exposed via the API; those stay UI-only. `lib/api-auth.ts` has the auth/ownership checks shared by every route under `app/api/v1/`.
+Covers projects (list/create/get/update) and, per project, budget items (list/add/update/delete, including renaming via `category`) and transactions (list/add/update — `PATCH /api/v1/projects/:id/transactions/:txId` takes any of `vendor`, `tx_date`, `tx_type`, `payment_method`, plus either `items` to replace the line items or `category` to recategorize them all). Project deletion and photo uploads aren't exposed via the API; those stay UI-only. `lib/api-auth.ts` has the auth/ownership checks shared by every route under `app/api/v1/`.
 
 ## Going live
 

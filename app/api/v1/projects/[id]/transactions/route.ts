@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import getDb, { Transaction, TransactionItem } from "@/lib/db";
 import { authenticateApiRequest, requireOwnedProjectForApi } from "@/lib/api-auth";
 import { asString, parseJsonBody } from "@/lib/api-validate";
+import { parseJsonTxItems, summarizeTxItems } from "@/lib/transactions";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = authenticateApiRequest(req);
@@ -36,18 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = await parseJsonBody(req);
   if (body === null) return NextResponse.json({ error: "Request body must be JSON." }, { status: 400 });
 
-  const rawItems = Array.isArray(body.items) ? body.items : [];
-  const items = rawItems
-    .map((raw) => {
-      const it = raw as Record<string, unknown>;
-      return {
-        category: typeof it?.category === "string" ? it.category.trim() : "",
-        description: typeof it?.description === "string" ? it.description.trim() : "",
-        amount: typeof it?.amount === "number" && !isNaN(it.amount) ? it.amount : 0,
-      };
-    })
-    .filter((it) => it.amount > 0 || it.category || it.description);
-
+  const items = parseJsonTxItems(body.items);
   if (items.length === 0) {
     return NextResponse.json(
       { error: "'items' must be a non-empty array of { category, description, amount }." },
@@ -55,11 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
-  const total = Math.round(items.reduce((s, it) => s + it.amount, 0) * 100) / 100;
-  const distinctCategories = [...new Set(items.map((it) => it.category).filter(Boolean))];
-  const headerCategory =
-    distinctCategories.length === 1 ? distinctCategories[0] : distinctCategories.length > 1 ? "Split" : "";
-  const headerDescription = items.length === 1 ? items[0].description : `${items.length} items`;
+  const { total, headerCategory, headerDescription } = summarizeTxItems(items);
   const txType = body.tx_type === "return" ? "return" : "expense";
   const txDate = asString(body.tx_date) || new Date().toISOString().slice(0, 10);
 

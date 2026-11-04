@@ -23,6 +23,14 @@ export async function PATCH(
   const body = await parseJsonBody(req);
   if (body === null) return NextResponse.json({ error: "Request body must be JSON." }, { status: 400 });
 
+  // Renaming only changes this budget line. Transactions are matched to budget
+  // lines by category name, so recategorize them separately if needed.
+  let category = current.category;
+  if ("category" in body) {
+    const requested = asString(body.category)?.trim();
+    if (!requested) return NextResponse.json({ error: "'category' must be a non-empty string." }, { status: 400 });
+    category = requested;
+  }
   const description = asString(body.description) ?? current.description;
   const qty = asNumber(body.qty) ?? current.qty;
   const unitCost = asNumber(body.unit_cost) ?? current.unit_cost;
@@ -72,9 +80,9 @@ export async function PATCH(
 
   getDb()
     .prepare(
-      "UPDATE budget_items SET amount = ?, description = ?, qty = ?, unit = ?, unit_cost = ?, parent_id = ? WHERE id = ? AND project_id = ?"
+      "UPDATE budget_items SET category = ?, amount = ?, description = ?, qty = ?, unit = ?, unit_cost = ?, parent_id = ? WHERE id = ? AND project_id = ?"
     )
-    .run(amount, description, qty, unit, unitCost, parentId, Number(itemId), Number(id));
+    .run(category, amount, description, qty, unit, unitCost, parentId, Number(itemId), Number(id));
 
   const item = getDb().prepare("SELECT * FROM budget_items WHERE id = ?").get(Number(itemId)) as BudgetItem;
   return NextResponse.json({ budget_item: item });
