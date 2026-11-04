@@ -32,11 +32,49 @@ export async function PATCH(
   const amount =
     qty > 0 && unitCost > 0 ? Math.round(qty * unitCost * 100) / 100 : asNumber(body.amount) ?? current.amount;
 
+  // parent_id: omit the field to leave it as-is, send null to un-nest, or
+  // send an id to (re)nest it. Same rule as creation — the target must be an
+  // existing top-level item in this project — plus two checks only a move
+  // needs: no self-parenting, and an item that already has sub-items of its
+  // own can't be nested under another one, since the budget page only ever
+  // renders one level of grouping.
+  let parentId: number | null = current.parent_id;
+  if ("parent_id" in body) {
+    if (body.parent_id === null) {
+      parentId = null;
+    } else {
+      const requestedParentId = asNumber(body.parent_id);
+      if (requestedParentId === undefined) {
+        return NextResponse.json({ error: "'parent_id' must be a number or null." }, { status: 400 });
+      }
+      if (requestedParentId === Number(itemId)) {
+        return NextResponse.json({ error: "A budget item can't be its own parent." }, { status: 400 });
+      }
+      const parent = getDb()
+        .prepare("SELECT id FROM budget_items WHERE id = ? AND project_id = ? AND parent_id IS NULL")
+        .get(requestedParentId, Number(id));
+      if (!parent) {
+        return NextResponse.json(
+          { error: "'parent_id' must reference an existing top-level budget item in this project." },
+          { status: 400 }
+        );
+      }
+      const hasChildren = getDb().prepare("SELECT 1 FROM budget_items WHERE parent_id = ? LIMIT 1").get(Number(itemId));
+      if (hasChildren) {
+        return NextResponse.json(
+          { error: "This item has its own sub-items and can't be nested under another category." },
+          { status: 400 }
+        );
+      }
+      parentId = requestedParentId;
+    }
+  }
+
   getDb()
     .prepare(
-      "UPDATE budget_items SET amount = ?, description = ?, qty = ?, unit = ?, unit_cost = ? WHERE id = ? AND project_id = ?"
+      "UPDATE budget_items SET amount = ?, description = ?, qty = ?, unit = ?, unit_cost = ?, parent_id = ? WHERE id = ? AND project_id = ?"
     )
-    .run(amount, description, qty, unit, unitCost, Number(itemId), Number(id));
+    .run(amount, description, qty, unit, unitCost, parentId, Number(itemId), Number(id));
 
   const item = getDb().prepare("SELECT * FROM budget_items WHERE id = ?").get(Number(itemId)) as BudgetItem;
   return NextResponse.json({ budget_item: item });

@@ -130,10 +130,13 @@ export default async function SettingsPage({
                 <ul className="small secondary" style={{ paddingLeft: 20, marginTop: 4 }}>
                   <li><code>GET/POST /api/v1/projects</code></li>
                   <li><code>GET/PATCH /api/v1/projects/:id</code></li>
-                  <li><code>GET/POST /api/v1/projects/:id/budget</code></li>
-                  <li><code>PATCH/DELETE /api/v1/projects/:id/budget/:itemId</code></li>
+                  <li><code>GET/POST /api/v1/projects/:id/budget</code> (POST accepts <code>parent_id</code> to create a sub-item)</li>
+                  <li><code>PATCH/DELETE /api/v1/projects/:id/budget/:itemId</code> (PATCH accepts <code>parent_id</code>, or <code>null</code> to un-nest)</li>
                   <li><code>GET/POST /api/v1/projects/:id/transactions</code></li>
                 </ul>
+                <p className="small muted" style={{ marginTop: 8 }}>
+                  A sub-item&apos;s parent must be an existing top-level item in the same project — nesting is one level deep, so an item that already has its own sub-items can&apos;t be nested under another one.
+                </p>
                 <p className="small muted" style={{ marginTop: 8 }}>
                   Project deletion isn&apos;t exposed via the API — that stays in the app itself.
                 </p>

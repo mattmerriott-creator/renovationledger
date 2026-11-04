@@ -18,8 +18,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json({ budget_items: items });
 }
 
-// Adds a top-level budget line. Sub-items (parent_id) aren't exposed via the
-// API yet — that stays a UI-only feature for now.
+// Adds a budget line, optionally as a sub-item of an existing top-level one
+// (parent_id) — same rule the UI's "add sub-item" form enforces: the parent
+// must exist in this project and must itself be top-level, since the budget
+// page only ever renders one level of grouping.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = authenticateApiRequest(req);
   if ("error" in auth) return auth.error;
@@ -41,11 +43,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const unit = requestedUnit && (BUDGET_UNITS as readonly string[]).includes(requestedUnit) ? requestedUnit : "job";
   const amount = qty > 0 && unitCost > 0 ? Math.round(qty * unitCost * 100) / 100 : asNumber(body.amount) ?? 0;
 
+  let parentId: number | null = null;
+  if (body.parent_id !== undefined && body.parent_id !== null) {
+    const requestedParentId = asNumber(body.parent_id);
+    if (requestedParentId === undefined) {
+      return NextResponse.json({ error: "'parent_id' must be a number or null." }, { status: 400 });
+    }
+    const parent = getDb()
+      .prepare("SELECT id FROM budget_items WHERE id = ? AND project_id = ? AND parent_id IS NULL")
+      .get(requestedParentId, Number(id));
+    if (!parent) {
+      return NextResponse.json(
+        { error: "'parent_id' must reference an existing top-level budget item in this project." },
+        { status: 400 }
+      );
+    }
+    parentId = requestedParentId;
+  }
+
   const result = getDb()
     .prepare(
-      "INSERT INTO budget_items (project_id, category, description, amount, sort, qty, unit, unit_cost) VALUES (?, ?, ?, ?, 999, ?, ?, ?)"
+      "INSERT INTO budget_items (project_id, category, description, amount, sort, qty, unit, unit_cost, parent_id) VALUES (?, ?, ?, ?, 999, ?, ?, ?, ?)"
     )
-    .run(Number(id), category, description, amount, qty, unit, unitCost);
+    .run(Number(id), category, description, amount, qty, unit, unitCost, parentId);
 
   const item = getDb()
     .prepare("SELECT * FROM budget_items WHERE id = ?")
