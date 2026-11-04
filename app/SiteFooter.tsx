@@ -11,10 +11,12 @@ export default function SiteFooter() {
           </p>
         </div>
         <div style={{ textAlign: "right" }}>
-          <p className="small muted" style={{ marginBottom: 8 }}>
+          <p className="small muted" style={{ marginBottom: 8, display: "flex", gap: 16, justifyContent: "flex-end" }}>
             <Link href="/contact" style={{ color: "inherit" }}>Contact</Link>
+            <Link href="/privacy" style={{ color: "inherit" }}>Privacy</Link>
+            <Link href="/terms" style={{ color: "inherit" }}>Terms</Link>
           </p>
-          <p className="small muted">© {new Date().getFullYear()} 631Digital.com</p>
+          <p className="small muted">© {new Date().getFullYear()} MJ Property Group LLC</p>
         </div>
       </div>
     </footer>

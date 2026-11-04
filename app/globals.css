@@ -271,6 +271,14 @@ table.data tfoot td { font-weight: 700; border-top: 2px solid var(--color-dark);
 .faq-item[open] summary::after { content: "–"; }
 .faq-item p { margin-top: 10px; color: var(--color-text-secondary); }
 
+/* ---------- Legal pages ---------- */
+.legal h2 { margin-top: 32px; margin-bottom: 12px; }
+.legal h2:first-child { margin-top: 0; }
+.legal p, .legal ul, .legal ol { margin-bottom: 14px; color: var(--color-text-secondary); }
+.legal ul, .legal ol { padding-left: 22px; }
+.legal li { margin-bottom: 6px; }
+.legal strong { color: var(--color-text-primary); font-weight: 600; }
+
 /* ---------- Footer ---------- */
 .footer { background: var(--color-dark); color: var(--color-white); padding: 48px 0; }
 .footer .muted { color: var(--color-text-muted); }
