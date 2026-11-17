@@ -3,6 +3,7 @@ import getDb, { Project, getProjectFinancials } from "@/lib/db";
 import { authenticateApiRequest } from "@/lib/api-auth";
 import { asString, asNumber, parseJsonBody } from "@/lib/api-validate";
 import { createProjectRecord } from "@/lib/projects";
+import { isArvSource } from "@/lib/arv";
 
 export async function GET(req: NextRequest) {
   const auth = authenticateApiRequest(req);
@@ -30,11 +31,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "'name' and 'address' are required." }, { status: 400 });
   }
 
+  if ("arv_source" in body && !isArvSource(body.arv_source)) {
+    return NextResponse.json({ error: "'arv_source' must be 'comps' or 'manual'." }, { status: 400 });
+  }
+
   const { projectId } = createProjectRecord(auth.user.id, {
     name, address,
     city: asString(body.city), state: asString(body.state), zip: asString(body.zip),
     property_type: asString(body.property_type), strategy: asString(body.strategy), status: asString(body.status),
     purchase_price: asNumber(body.purchase_price), arv: asNumber(body.arv), loan_amount: asNumber(body.loan_amount),
+    arv_source: isArvSource(body.arv_source) ? body.arv_source : undefined,
     lender_name: asString(body.lender_name),
     units: asNumber(body.units), beds: asNumber(body.beds), baths: asNumber(body.baths), sqft: asNumber(body.sqft),
     start_date: asString(body.start_date), target_end_date: asString(body.target_end_date), notes: asString(body.notes),

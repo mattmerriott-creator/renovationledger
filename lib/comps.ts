@@ -92,3 +92,11 @@ export async function getComps(
     };
   }
 }
+
+// Average $/sqft across comps, rounded to whole dollars. Comps with no sqft
+// (common in public-record data) are skipped so they don't drag it toward 0.
+export function averagePricePerSqft(comps: Pick<Comp, "pricePerSqft">[]): number {
+  const usable = comps.filter((c) => c.pricePerSqft > 0);
+  if (usable.length === 0) return 0;
+  return Math.round(usable.reduce((s, c) => s + c.pricePerSqft, 0) / usable.length);
+}

@@ -186,6 +186,29 @@ function migrate(db: Database.Database) {
   addColumnIfMissing(db, "projects", "refinance_rate", "REAL NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "projects", "refinance_term_months", "INTEGER NOT NULL DEFAULT 360");
 
+  // ARV source: "comps" sets ARV to the comps' average $/sqft × the
+  // property's sqft; "manual" uses the number typed in. comps_avg_ppsf is the
+  // average saved by the comps page (it's the only place that fetches live
+  // comps), so ARV can be worked out without calling the comps API again.
+  const arvSourceAdded = addColumnIfMissing(db, "projects", "arv_source", "TEXT NOT NULL DEFAULT 'manual'");
+  addColumnIfMissing(db, "projects", "comps_avg_ppsf", "REAL NOT NULL DEFAULT 0");
+  if (arvSourceAdded) {
+    // Projects that already have an ARV keep it. Ones without switch to comps.
+    db.exec("UPDATE projects SET arv_source = 'comps' WHERE arv = 0");
+    // Seed the average from hand-entered comps; the comps page refreshes it
+    // (including any live comps) the next time it's opened.
+    const avgs = db
+      .prepare(
+        "SELECT project_id, AVG(ROUND(price * 1.0 / sqft)) ppsf FROM comps WHERE sqft > 0 AND price > 0 GROUP BY project_id"
+      )
+      .all() as { project_id: number; ppsf: number }[];
+    const setAvg = db.prepare("UPDATE projects SET comps_avg_ppsf = ? WHERE id = ?");
+    for (const a of avgs) setAvg.run(Math.round(a.ppsf), a.project_id);
+    db.exec(
+      "UPDATE projects SET arv = ROUND(comps_avg_ppsf * sqft) WHERE arv_source = 'comps' AND comps_avg_ppsf > 0 AND sqft > 0"
+    );
+  }
+
   // Created after the column migration above — on a pre-existing database the
   // column doesn't exist until addColumnIfMissing runs, so this index can't
   // live in the CREATE TABLE block that runs first.
@@ -262,6 +285,8 @@ export type Project = {
   status: "planning" | "active" | "complete" | "sold";
   purchase_price: number;
   arv: number;
+  arv_source: "comps" | "manual";
+  comps_avg_ppsf: number;
   loan_amount: number;
   lender_name: string;
   units: number;

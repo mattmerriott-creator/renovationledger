@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import getDb, { Project, getProjectFinancials } from "@/lib/db";
 import { authenticateApiRequest, requireOwnedProjectForApi } from "@/lib/api-auth";
 import { asString, asNumber, parseJsonBody } from "@/lib/api-validate";
+import { isArvSource, syncCompsArv } from "@/lib/arv";
 
 // Fields a PATCH may touch, split by the JSON type expected. "id", "user_id"
 // and "created_at" are deliberately excluded.
@@ -58,12 +59,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     values.push(n);
   }
 
+  // arv_source: "comps" or "manual". Sending an arv on its own means it was
+  // set by hand, so the project switches to manual.
+  if ("arv_source" in body) {
+    if (!isArvSource(body.arv_source)) {
+      return NextResponse.json({ error: "'arv_source' must be 'comps' or 'manual'." }, { status: 400 });
+    }
+    sets.push("arv_source = ?");
+    values.push(body.arv_source);
+  } else if ("arv" in body) {
+    sets.push("arv_source = ?");
+    values.push("manual");
+  }
+
   if (sets.length === 0) {
     return NextResponse.json({ error: "No updatable fields provided." }, { status: 400 });
   }
 
   values.push(Number(id));
   getDb().prepare(`UPDATE projects SET ${sets.join(", ")} WHERE id = ?`).run(...values);
+  syncCompsArv(Number(id));
 
   const project = getDb().prepare("SELECT * FROM projects WHERE id = ?").get(Number(id)) as Project;
   return NextResponse.json({ project });

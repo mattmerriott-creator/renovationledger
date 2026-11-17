@@ -115,7 +115,7 @@ export default async function ProjectOverviewPage({
               <tr><td className="muted">Purchase price</td><td className="num">{money(project.purchase_price)}</td></tr>
               <tr><td className="muted">Rehab budget</td><td className="num">{money(f.budgetTotal)}</td></tr>
               <tr><td className="muted">Spent to date</td><td className="num">{money(f.spentTotal)}</td></tr>
-              <tr><td className="muted">ARV</td><td className="num">{money(project.arv)}</td></tr>
+              <tr><td className="muted">ARV{project.arv_source === "comps" ? " · from comps" : ""}</td><td className="num">{money(project.arv)}</td></tr>
               <tr>
                 <td className="muted">
                   Loan · {project.lender_name || "no lender set"}
