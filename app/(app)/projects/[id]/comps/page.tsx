@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { requireUser, getOwnedProject } from "@/lib/auth";
 import getDb, { ManualComp, Project } from "@/lib/db";
-import { getComps, zillowSearchUrl, Comp } from "@/lib/comps";
-import { addComp, deleteComp } from "@/lib/actions";
+import { getComps, zillowSearchUrl, averagePricePerSqft, Comp } from "@/lib/comps";
+import { compsArv, saveCompsAverage } from "@/lib/arv";
+import { addComp, deleteComp, setArvSource } from "@/lib/actions";
 import { money, dateFmt, pct } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Comps", robots: { index: false } };
@@ -26,7 +27,7 @@ function manualToComp(c: ManualComp): Comp {
 export default async function CompsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireUser();
-  const project = getOwnedProject(Number(id), user.id) as Project;
+  let project = getOwnedProject(Number(id), user.id) as Project;
   const result = await getComps(project.address, project.city, project.state, project.zip, project.property_type);
 
   const manualComps = getDb()
@@ -37,11 +38,17 @@ export default async function CompsPage({ params }: { params: Promise<{ id: stri
     (a, b) => a.distanceMiles - b.distanceMiles
   );
 
-  const avgPpsf =
-    allComps.length > 0
-      ? Math.round(allComps.reduce((s, c) => s + c.pricePerSqft, 0) / allComps.length)
-      : 0;
-  const impliedArv = project.sqft > 0 && avgPpsf > 0 ? avgPpsf * project.sqft : null;
+  const avgPpsf = averagePricePerSqft(allComps);
+  const ppsfCount = allComps.filter((c) => c.pricePerSqft > 0).length;
+  const impliedArv = compsArv(avgPpsf, project.sqft);
+
+  // This page is the only place that sees live comps, so it saves the average
+  // for the rest of the app and updates ARV if the project uses comps.
+  if (avgPpsf !== project.comps_avg_ppsf || (project.arv_source === "comps" && impliedArv !== null && impliedArv !== project.arv)) {
+    saveCompsAverage(project.id, avgPpsf);
+    project = getOwnedProject(project.id, user.id) as Project;
+  }
+  const fromComps = project.arv_source === "comps";
 
   return (
     <>
@@ -82,13 +89,29 @@ export default async function CompsPage({ params }: { params: Promise<{ id: stri
         </div>
         <div className="card card-cream">
           <div className="stat-number" style={{ fontSize: 32 }}>{money(avgPpsf)}</div>
-          <div className="stat-label">Average price per sqft ({allComps.length} comps)</div>
+          <div className="stat-label">
+            Average price per sqft ({ppsfCount} comp{ppsfCount === 1 ? "" : "s"}
+            {ppsfCount < allComps.length ? ` with sqft, of ${allComps.length}` : ""})
+          </div>
         </div>
         <div className="card card-cream">
-          <div className="stat-number" style={{ fontSize: 32 }}>{money(project.arv)}</div>
+          <div className="stat-number" style={{ fontSize: 32 }}>{project.arv ? money(project.arv) : "—"}</div>
           <div className="stat-label">
-            Your ARV{impliedArv && project.arv ? ` · ${pct((project.arv / impliedArv) * 100 - 100)} vs. comps` : ""}
+            {fromComps
+              ? impliedArv !== null
+                ? "ARV · from comps"
+                : project.sqft > 0
+                  ? "ARV · from comps once you add one"
+                  : "ARV · add the property's sqft to calculate from comps"
+              : `ARV · entered by hand${impliedArv && project.arv ? ` · ${pct((project.arv / impliedArv) * 100 - 100)} vs. comps` : ""}`}
           </div>
+          <form action={setArvSource} style={{ marginTop: 10 }}>
+            <input type="hidden" name="project_id" value={project.id} />
+            <input type="hidden" name="arv_source" value={fromComps ? "manual" : "comps"} />
+            <button type="submit" className="btn btn-outline btn-sm">
+              {fromComps ? "Enter ARV by hand instead" : "Use comps for ARV"}
+            </button>
+          </form>
         </div>
       </div>
 

@@ -18,6 +18,7 @@ import {
   revokeApiKey,
 } from "./auth";
 import { createProjectRecord } from "./projects";
+import { isArvSource, syncCompsArv } from "./arv";
 import { saveUpload, deleteUpload, deleteProjectUploads } from "./files";
 
 function str(fd: FormData, key: string): string {
@@ -81,6 +82,7 @@ export async function createProject(fd: FormData) {
     city: str(fd, "city"), state: str(fd, "state"), zip: str(fd, "zip"),
     property_type: str(fd, "property_type"), strategy: str(fd, "strategy"), status: str(fd, "status"),
     purchase_price: num(fd, "purchase_price"), arv: num(fd, "arv"), loan_amount: num(fd, "loan_amount"),
+    arv_source: isArvSource(str(fd, "arv_source")) ? (str(fd, "arv_source") as "comps" | "manual") : "comps",
     lender_name: str(fd, "lender_name"),
     units: num(fd, "units"), beds: num(fd, "beds"), baths: num(fd, "baths"), sqft: num(fd, "sqft"),
     start_date: str(fd, "start_date"), target_end_date: str(fd, "target_end_date"), notes: str(fd, "notes"),
@@ -106,7 +108,7 @@ export async function updateProject(fd: FormData) {
   getDb()
     .prepare(
       `UPDATE projects SET name=?, address=?, city=?, state=?, zip=?, property_type=?, strategy=?,
-        status=?, purchase_price=?, arv=?, loan_amount=?, lender_name=?, units=?, beds=?, baths=?,
+        status=?, purchase_price=?, arv=?, arv_source=?, loan_amount=?, lender_name=?, units=?, beds=?, baths=?,
         sqft=?, start_date=?, target_end_date=?, notes=?,
         exit_strategy=?, loan_type=?, loan_term_months=?, interest_rate=?, points=?, down_payment=?,
         purchase_closing_costs=?, realtor_fee_pct=?, selling_closing_costs=?, refinance_ltv_pct=?,
@@ -117,7 +119,9 @@ export async function updateProject(fd: FormData) {
     .run(
       str(fd, "name"), str(fd, "address"), str(fd, "city"), str(fd, "state").toUpperCase(), str(fd, "zip"),
       str(fd, "property_type"), str(fd, "strategy"), str(fd, "status"),
-      num(fd, "purchase_price"), num(fd, "arv"), num(fd, "loan_amount"), str(fd, "lender_name"),
+      num(fd, "purchase_price"), num(fd, "arv"),
+      isArvSource(str(fd, "arv_source")) ? str(fd, "arv_source") : "manual",
+      num(fd, "loan_amount"), str(fd, "lender_name"),
       Math.max(1, Math.round(num(fd, "units"))), num(fd, "beds"), num(fd, "baths"), Math.round(num(fd, "sqft")),
       str(fd, "start_date"), str(fd, "target_end_date"), str(fd, "notes"),
       str(fd, "exit_strategy") || "flip", str(fd, "loan_type"), Math.round(num(fd, "loan_term_months")),
@@ -128,6 +132,8 @@ export async function updateProject(fd: FormData) {
       num(fd, "refinance_rate"), Math.round(num(fd, "refinance_term_months")) || 360,
       id, user.id
     );
+  // Sqft or the ARV source may have changed, so refresh a comps-based ARV.
+  syncCompsArv(id);
   revalidatePath(`/projects/${id}`);
   redirect(`/projects/${id}`);
 }
@@ -508,6 +514,19 @@ export async function deleteComp(fd: FormData) {
     .prepare("DELETE FROM comps WHERE id = ? AND project_id = ?")
     .run(Number(fd.get("comp_id")), projectId);
   revalidatePath(`/projects/${projectId}/comps`);
+}
+
+// Switches a project between comps-based and hand-entered ARV, from the
+// comps page. Switching to manual keeps the current ARV as the typed value.
+export async function setArvSource(fd: FormData) {
+  const user = await requireUser();
+  const projectId = Number(fd.get("project_id"));
+  if (!getOwnedProject(projectId, user.id)) redirect("/dashboard");
+  const source = str(fd, "arv_source");
+  if (!isArvSource(source)) redirect(`/projects/${projectId}/comps`);
+  getDb().prepare("UPDATE projects SET arv_source = ? WHERE id = ?").run(source, projectId);
+  syncCompsArv(projectId);
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
 
 // ---------- Contact ----------

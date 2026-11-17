@@ -15,6 +15,7 @@ export type ProjectInput = {
   status?: string;
   purchase_price?: number;
   arv?: number;
+  arv_source?: "comps" | "manual";
   loan_amount?: number;
   lender_name?: string;
   units?: number;
@@ -54,20 +55,23 @@ export function createProjectRecord(
     .prepare(
       `INSERT INTO projects
         (user_id, name, address, city, state, zip, property_type, strategy, status,
-         purchase_price, arv, loan_amount, lender_name, units, beds, baths, sqft,
+         purchase_price, arv, arv_source, loan_amount, lender_name, units, beds, baths, sqft,
          start_date, target_end_date, notes,
          exit_strategy, loan_type, loan_term_months, interest_rate, points, down_payment,
          purchase_closing_costs, realtor_fee_pct, selling_closing_costs, refinance_ltv_pct,
          refinance_closing_costs, exit_date, monthly_rent, monthly_operating_expenses,
          refinance_rate, refinance_term_months)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     )
     .run(
       userId, input.name, input.address, input.city ?? "", (input.state ?? "").toUpperCase(), input.zip ?? "",
       input.property_type || "single_family",
       input.strategy || "rehab",
       input.status || "planning",
-      input.purchase_price ?? 0, input.arv ?? 0, input.loan_amount ?? 0, input.lender_name ?? "",
+      input.purchase_price ?? 0, input.arv ?? 0,
+      // Default: comps, unless an ARV was given without saying where it came from.
+      input.arv_source ?? (input.arv ? "manual" : "comps"),
+      input.loan_amount ?? 0, input.lender_name ?? "",
       Math.max(1, Math.round(input.units ?? 0)), input.beds ?? 0, input.baths ?? 0, Math.round(input.sqft ?? 0),
       input.start_date ?? "", input.target_end_date ?? "", input.notes ?? "",
       input.exit_strategy || "flip", input.loan_type ?? "", Math.round(input.loan_term_months ?? 0),
