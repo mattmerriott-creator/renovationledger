@@ -1,4 +1,5 @@
 import { Project } from "@/lib/db";
+import ArvField from "./ArvField";
 
 // Shared form fields for creating and editing a project.
 // Wrap in a <form action={...}> in the page that uses it.
@@ -58,29 +59,17 @@ export default function ProjectFormFields({ project }: { project?: Project }) {
           <label htmlFor="purchase_price">Purchase price ($)</label>
           <input id="purchase_price" name="purchase_price" inputMode="decimal" defaultValue={p?.purchase_price || ""} placeholder="85000" />
         </div>
-        <div className="field">
-          <label htmlFor="arv">ARV ($)</label>
-          <input id="arv" name="arv" inputMode="decimal" defaultValue={p?.arv || ""} placeholder="185000" />
-          <select
-            id="arv_source"
-            name="arv_source"
-            aria-label="Where ARV comes from"
-            defaultValue={p?.arv_source ?? "comps"}
-            style={{ marginTop: 8 }}
-          >
-            <option value="comps">Calculate from comps</option>
-            <option value="manual">Use the number I enter</option>
-          </select>
-        </div>
+        <ArvField
+          defaultArv={p?.arv ?? 0}
+          defaultSource={p?.arv_source ?? "comps"}
+          compsAvgPpsf={p?.comps_avg_ppsf ?? 0}
+          sqft={p?.sqft ?? 0}
+        />
         <div className="field">
           <label htmlFor="loan_amount">Loan amount ($)</label>
           <input id="loan_amount" name="loan_amount" inputMode="decimal" defaultValue={p?.loan_amount || ""} placeholder="120000" />
         </div>
       </div>
-      <p className="small secondary" style={{ marginTop: -8, marginBottom: 16 }}>
-        Calculate from comps: ARV is the comps&rsquo; average price per sqft × this property&rsquo;s square
-        feet, and updates whenever comps change. Until there are comps and square feet, the ARV entered here is used.
-      </p>
       <div className="field">
         <label htmlFor="lender_name">Lender</label>
         <input id="lender_name" name="lender_name" defaultValue={p?.lender_name} placeholder="First Bank of Tulsa" />
