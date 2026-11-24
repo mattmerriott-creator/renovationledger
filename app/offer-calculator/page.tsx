@@ -10,7 +10,7 @@ const SITE_URL = process.env.SITE_URL || "http://localhost:3000";
 export const metadata: Metadata = {
   title: "Free Max Offer Calculator for Flips & Rentals",
   description:
-    "Work out the most you should pay for a fix and flip or rental. Compare up to 3 offers side by side using ARV, repairs, holding costs, profit or cap rate. Free, no signup.",
+    "Work out the most you should offer on a wholesale deal, a fix and flip, or a rental. Work backward from your wholesale fee, profit, or the DSCR your lender needs. Compare up to 3 offers side by side. Free, no signup.",
   alternates: { canonical: "/offer-calculator" },
   openGraph: {
     title: "Free Max Offer Calculator for Flips & Rentals | RenovationLedger",
@@ -22,7 +22,11 @@ export const metadata: Metadata = {
 const FAQ = [
   {
     q: "How is the max offer worked out?",
-    a: "You cap your all-in cost (price, repairs, closing, holding and any wholesale fee) at a percent of ARV, or, for a flip, start from ARV, take off selling costs and every other cost, and leave room for the profit you want. Rentals use the percent rule, since a refi lender lends against value. For buildings with 5 or more units, turn on the cap rate switch: ARV becomes the yearly net operating income divided by the cap rate, and the offer follows from that. The exact formula is shown under each result.",
+    a: "Each tab works backward from what you need out of the deal. Wholesale: your buyer's price is ARV times the percent they'll pay, minus repairs, and your offer is that minus your fee and costs. Flip: keep all-in cost under a percent of ARV, or start from ARV and take off selling costs, every other cost and the profit you want. Rent: the DSCR you need sets the biggest loan payment the rent can carry, that sets the refi loan, and the loan sets the price. The exact formula is shown under each result.",
+  },
+  {
+    q: "How does the DSCR work?",
+    a: "DSCR here is net operating income (rent after vacancy, minus expenses) divided by the monthly loan payment. Put in the DSCR your lender needs, plus the rate and term, and the calculator finds the biggest refi loan that still meets it. If 75% of ARV (or whatever max you set) is smaller, that limit wins instead. Anything you can't refinance out has to come off the price, unless you're OK leaving some cash in.",
   },
   {
     q: "When should I use a cap rate?",
@@ -66,8 +70,9 @@ export default async function OfferCalculatorPage() {
           <div className="overline">Free tool</div>
           <h1 className="h2" style={{ margin: "8px 0 8px" }}>What&apos;s the most you should pay?</h1>
           <p className="secondary" style={{ maxWidth: 680, marginBottom: 24 }}>
-            Plug in the ARV, repairs and your costs to get a max offer for a flip or a rental. Compare up to three
-            versions of the deal side by side. No signup needed.
+            Pick wholesale, flip or rent, plug in the ARV, repairs and your costs, and get a max offer that leaves
+            room for your fee, your profit or the DSCR your lender needs. Compare up to three versions side by
+            side. No signup needed.
           </p>
 
           <OfferCalculator loggedIn={!!user} />

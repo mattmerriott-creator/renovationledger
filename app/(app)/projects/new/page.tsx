@@ -7,13 +7,17 @@ import { Project } from "@/lib/db";
 
 // Fields the public offer calculator can pre-fill through the URL. Anything
 // else in the query string is ignored.
-const PREFILL_NUMBERS = ["arv", "purchase_price", "purchase_closing_costs", "monthly_rent", "monthly_operating_expenses"] as const;
+const PREFILL_NUMBERS = [
+  "arv", "purchase_price", "purchase_closing_costs", "monthly_rent", "monthly_operating_expenses",
+  "refinance_ltv_pct", "refinance_rate", "refinance_term_months", "refinance_closing_costs",
+] as const;
 
 function prefillFrom(q: Record<string, string | undefined>): Partial<Project> | undefined {
   const p: Partial<Project> = {};
   for (const k of PREFILL_NUMBERS) {
     const n = parseFloat(q[k] ?? "");
-    if (!isNaN(n) && n > 0) p[k] = Math.round(n);
+    // Rates keep their decimals (7.5%); dollar amounts are whole numbers.
+    if (!isNaN(n) && n > 0) p[k] = k === "refinance_rate" ? Math.round(n * 1000) / 1000 : Math.round(n);
   }
   if (q.exit_strategy === "flip" || q.exit_strategy === "brrrr") p.exit_strategy = q.exit_strategy;
   if (q.notes) p.notes = q.notes.slice(0, 1000);

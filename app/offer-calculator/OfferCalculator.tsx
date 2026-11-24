@@ -14,6 +14,9 @@ const STORAGE_KEY = "rl-offer-calculator";
 const DEFAULT_VALUES: Record<NumberKey, string> = {
   arv: "210000",
   repairs: "45000",
+  buyerPct: "70",
+  yourFee: "10000",
+  yourCosts: "1000",
   buyClosing: "3500",
   holdingMonthly: "1100",
   holdMonths: "6",
@@ -25,7 +28,19 @@ const DEFAULT_VALUES: Record<NumberKey, string> = {
   vacancyPct: "8",
   monthlyExpenses: "475",
   targetCapPct: "8",
+  ltvPct: "75",
+  interestRate: "7.5",
+  termYears: "30",
+  targetDscr: "1.30",
+  cashLeftIn: "0",
+  refiClosing: "3000",
 };
+
+const MODES: { id: OfferMode; label: string }[] = [
+  { id: "wholesale", label: "Wholesale" },
+  { id: "flip", label: "Flip" },
+  { id: "rental", label: "Rent" },
+];
 
 const DEFAULT_STATE: CalcState = {
   mode: "flip",
@@ -49,7 +64,7 @@ function parseState(raw: string | null): CalcState | null {
   if (!raw) return null;
   try {
     const data = JSON.parse(raw);
-    if (data?.mode !== "flip" && data?.mode !== "rental") return null;
+    if (!MODES.some((m) => m.id === data?.mode)) return null;
     if (!Array.isArray(data.scenarios) || data.scenarios.length === 0) return null;
     const scenarios: Scenario[] = data.scenarios.slice(0, MAX_SCENARIOS).map((s: Record<string, unknown>, i: number) => {
       const values = { ...DEFAULT_VALUES };
@@ -169,40 +184,58 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
   const createProjectHref = (s: Scenario, i: number) => {
     const inputs = toInputs(s);
     const res = results[i];
+    const mode = state.mode;
     const notes = [
-      `From the offer calculator (${s.name}).`,
+      `From the offer calculator (${s.name}, ${MODES.find((m) => m.id === mode)?.label}).`,
       `Repair estimate: ${money(inputs.repairs)}.`,
-      `Holding: ${money(inputs.holdingMonthly)}/mo × ${inputs.holdMonths} mo.`,
-      inputs.wholesaleFee ? `Wholesale fee: ${money(inputs.wholesaleFee)}.` : "",
+      mode === "wholesale"
+        ? `Buyer's price: ${money(res.buyerPrice)}. Wholesale fee: ${money(inputs.yourFee)}.`
+        : `Holding: ${money(inputs.holdingMonthly)}/mo × ${inputs.holdMonths} mo.`,
+      mode !== "wholesale" && inputs.wholesaleFee ? `Assignment fee paid: ${money(inputs.wholesaleFee)}.` : "",
+      mode === "rental"
+        ? `Refi loan: ${money(res.loan)} at ${inputs.interestRate}% for ${inputs.termYears} yrs, DSCR ${res.dscr?.toFixed(2) ?? "—"}. Vacancy ${inputs.vacancyPct}% is included in operating expenses.`
+        : "",
       `Max offer: ${money(res.maxOffer)}.`,
     ].filter(Boolean).join(" ");
     const q = new URLSearchParams({
       arv: String(res.arv),
       purchase_price: String(Math.max(0, res.maxOffer)),
-      purchase_closing_costs: String(inputs.buyClosing),
-      exit_strategy: state.mode === "rental" ? "brrrr" : "flip",
+      exit_strategy: mode === "rental" ? "brrrr" : "flip",
       notes,
     });
-    if (state.mode === "rental") {
+    if (mode !== "wholesale") q.set("purchase_closing_costs", String(inputs.buyClosing));
+    if (mode === "rental") {
+      // The project's DSCR uses rent − operating expenses, so vacancy is
+      // folded into expenses to keep NOI the same as here.
       q.set("monthly_rent", String(inputs.monthlyRent));
-      q.set("monthly_operating_expenses", String(inputs.monthlyExpenses));
+      q.set("monthly_operating_expenses", String(Math.round(inputs.monthlyExpenses + inputs.monthlyRent * (inputs.vacancyPct / 100))));
+      q.set("refinance_ltv_pct", String(inputs.ltvPct));
+      q.set("refinance_rate", String(inputs.interestRate));
+      q.set("refinance_term_months", String(Math.round(inputs.termYears * 12)));
+      q.set("refinance_closing_costs", String(inputs.refiClosing));
     }
     const target = `/projects/new?${q.toString()}`;
     return loggedIn ? target : `/signup?next=${encodeURIComponent(target)}`;
   };
 
-  const rental = state.mode === "rental";
+  const mode = state.mode;
 
   return (
     <div>
       <div className="calc-toolbar no-print">
-        <div className="segmented" role="group" aria-label="Deal type">
-          <button type="button" aria-pressed={!rental} onClick={() => setState((st) => ({ ...st, mode: "flip" }))}>
-            Flip
-          </button>
-          <button type="button" aria-pressed={rental} onClick={() => setState((st) => ({ ...st, mode: "rental" }))}>
-            Rental
-          </button>
+        <div className="segmented" role="tablist" aria-label="Deal type">
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              role="tab"
+              aria-selected={mode === m.id}
+              aria-pressed={mode === m.id}
+              onClick={() => setState((st) => ({ ...st, mode: m.id }))}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {state.scenarios.length < MAX_SCENARIOS && (
@@ -212,15 +245,20 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
             {copied ? "Link copied" : "Copy link"}
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => window.print()}>Print</button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setState(DEFAULT_STATE)}>Reset</button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setState({ ...DEFAULT_STATE, mode })}>Reset</button>
         </div>
       </div>
 
       <div className={state.scenarios.length === 1 ? "calc-grid calc-grid-1" : "calc-grid"}>
         {state.scenarios.map((s, i) => {
           const res = results[i];
+          const inputs = toInputs(s);
           const works = res.maxOffer > 0;
           const id = (k: string) => `s${i}-${k}`;
+          const f = (key: NumberKey, label: string, opts: { prefix?: string; suffix?: string; hint?: string } = {}) => (
+            <Field id={id(key)} label={label} value={s.values[key]} onChange={(v) => setValue(i, key, v)} {...opts} />
+          );
+          const capLocked = mode === "rental" && s.useCapRate;
           return (
             <section key={i} className="card calc-card" aria-label={s.name}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
@@ -239,27 +277,42 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
               </div>
 
               <div className="card card-dark calc-result">
-                <div className="stat-label" style={{ marginTop: 0 }}>Max offer</div>
+                <div className="stat-label" style={{ marginTop: 0 }}>
+                  {mode === "wholesale" ? "Max offer (your contract price)" : "Max offer"}
+                </div>
                 <div className="stat-number" style={{ fontSize: 34, color: works ? "var(--color-accent)" : "#f0a090" }}>
                   {works ? money(res.maxOffer) : "No deal"}
                 </div>
                 {!works && <p className="small" style={{ marginTop: 4 }}>These numbers don&apos;t leave room for an offer.</p>}
                 <dl className="calc-lines">
-                  <dt>All-in cost</dt><dd>{money(res.allIn)}</dd>
-                  <dt>All-in % of ARV</dt><dd>{pct(res.allInPctOfArv)}</dd>
-                  {rental ? (
+                  {mode === "wholesale" && (
                     <>
-                      {res.valuedByCapRate && <><dt>ARV from cap rate</dt><dd>{money(res.arv)}</dd></>}
-                      <dt>NOI per year</dt><dd>{money(res.noi)}</dd>
+                      <dt>Sell the contract for</dt><dd>{money(res.buyerPrice)}</dd>
+                      <dt>Your fee</dt><dd>{money(inputs.yourFee)}</dd>
+                      <dt>Buyer&apos;s all-in % of ARV</dt><dd>{pct(res.allInPctOfArv)}</dd>
                     </>
-                  ) : (
+                  )}
+                  {mode === "flip" && (
                     <>
+                      <dt>All-in cost</dt><dd>{money(res.allIn)}</dd>
+                      <dt>All-in % of ARV</dt><dd>{pct(res.allInPctOfArv)}</dd>
                       <dt>Selling costs</dt><dd>{money(res.sellCosts)}</dd>
                       <dt>Projected profit</dt><dd>{money(res.profit)}</dd>
                     </>
                   )}
+                  {mode === "rental" && (
+                    <>
+                      {res.valuedByCapRate && <><dt>ARV from cap rate</dt><dd>{money(res.arv)}</dd></>}
+                      <dt>Refi loan ({res.loanLimitedBy === "dscr" ? "set by DSCR" : "set by LTV"})</dt><dd>{money(res.loan)}</dd>
+                      <dt>Payment / month</dt><dd>{money(res.monthlyPayment)}</dd>
+                      <dt>DSCR</dt><dd>{res.dscr == null ? "—" : res.dscr.toFixed(2)}</dd>
+                      <dt>NOI / month</dt><dd>{money(res.noiMonthly)}</dd>
+                      <dt>Cash flow / month</dt><dd>{money(res.monthlyCashFlow)}</dd>
+                      <dt>All-in cost</dt><dd>{money(res.allIn)}</dd>
+                    </>
+                  )}
                 </dl>
-                <p className="small muted" style={{ marginTop: 10 }}>{offerFormula(state.mode, toInputs(s))}</p>
+                <p className="small muted" style={{ marginTop: 10 }}>{offerFormula(mode, inputs)}</p>
               </div>
 
               <h3 className="calc-h">The property</h3>
@@ -267,56 +320,39 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
                 id={id("arv")}
                 label="After-repair value (ARV)"
                 prefix="$"
-                value={rental && s.useCapRate ? String(res.arv) : s.values.arv}
+                value={capLocked ? String(res.arv) : s.values.arv}
                 onChange={(v) => setValue(i, "arv", v)}
-                readOnly={rental && s.useCapRate}
-                hint={rental && s.useCapRate ? "Figured from NOI ÷ cap rate. Turn off the cap rate switch to type your own." : undefined}
+                readOnly={capLocked}
+                hint={capLocked ? "Figured from NOI ÷ cap rate. Turn off the cap rate switch to type your own." : undefined}
               />
-              <Field id={id("repairs")} label="Repair estimate" prefix="$" value={s.values.repairs} onChange={(v) => setValue(i, "repairs", v)} />
+              {f("repairs", "Repair estimate", { prefix: "$" })}
 
-              <h3 className="calc-h">Your costs</h3>
-              <Field id={id("buyClosing")} label="Closing costs when you buy" prefix="$" value={s.values.buyClosing} onChange={(v) => setValue(i, "buyClosing", v)} />
-              <div className="form-grid">
-                <Field id={id("holdingMonthly")} label="Holding cost / month" prefix="$" value={s.values.holdingMonthly} onChange={(v) => setValue(i, "holdingMonthly", v)} />
-                <Field id={id("holdMonths")} label={rental ? "Months until rented" : "Months until sold"} value={s.values.holdMonths} onChange={(v) => setValue(i, "holdMonths", v)} />
-              </div>
-              <Field id={id("wholesaleFee")} label="Wholesale / assignment fee (if any)" prefix="$" value={s.values.wholesaleFee} onChange={(v) => setValue(i, "wholesaleFee", v)} />
-
-              {rental ? (
+              {mode === "wholesale" && (
                 <>
-                  <h3 className="calc-h">The rent</h3>
-                  <div className="form-grid">
-                    <Field id={id("monthlyRent")} label="Monthly rent" prefix="$" value={s.values.monthlyRent} onChange={(v) => setValue(i, "monthlyRent", v)} />
-                    <Field id={id("vacancyPct")} label="Vacancy" suffix="%" value={s.values.vacancyPct} onChange={(v) => setValue(i, "vacancyPct", v)} />
-                  </div>
-                  <Field id={id("monthlyExpenses")} label="Monthly expenses (taxes, insurance, upkeep, management)" prefix="$" value={s.values.monthlyExpenses} onChange={(v) => setValue(i, "monthlyExpenses", v)} />
-
-                  <h3 className="calc-h">Your target</h3>
-                  <Field
-                    id={id("maxAllInPct")}
-                    label="Max all-in (% of ARV)"
-                    suffix="%"
-                    value={s.values.maxAllInPct}
-                    onChange={(v) => setValue(i, "maxAllInPct", v)}
-                    hint="Refi lenders usually lend 70–80% of value, so staying under that lets you pull your cash back out."
-                  />
-                  <label className="switch" style={{ margin: "4px 0 12px" }}>
-                    <input type="checkbox" role="switch" checked={s.useCapRate} onChange={(e) => update(i, { useCapRate: e.target.checked })} />
-                    <span className="switch-track" aria-hidden="true" />
-                    <span>Value with a cap rate (5+ units)</span>
-                  </label>
-                  {s.useCapRate && (
-                    <Field
-                      id={id("targetCapPct")}
-                      label="Cap rate"
-                      suffix="%"
-                      value={s.values.targetCapPct}
-                      onChange={(v) => setValue(i, "targetCapPct", v)}
-                      hint="Buildings with 5+ units are valued on income. A lower cap rate means a higher ARV."
-                    />
-                  )}
+                  <h3 className="calc-h">Your buyer</h3>
+                  {f("buyerPct", "Buyer's max all-in (% of ARV)", {
+                    suffix: "%",
+                    hint: "What your cash buyers will pay plus repairs, as a % of ARV. Many use 65–75%.",
+                  })}
+                  <h3 className="calc-h">Your deal</h3>
+                  {f("yourFee", "Wholesale fee you want", { prefix: "$" })}
+                  {f("yourCosts", "Your costs (marketing, closing, earnest money)", { prefix: "$" })}
                 </>
-              ) : (
+              )}
+
+              {mode !== "wholesale" && (
+                <>
+                  <h3 className="calc-h">Your costs</h3>
+                  {f("buyClosing", "Closing costs when you buy", { prefix: "$" })}
+                  <div className="form-grid">
+                    {f("holdingMonthly", "Holding cost / month", { prefix: "$" })}
+                    {f("holdMonths", mode === "rental" ? "Months until rented" : "Months until sold")}
+                  </div>
+                  {f("wholesaleFee", "Assignment fee you pay (if any)", { prefix: "$" })}
+                </>
+              )}
+
+              {mode === "flip" && (
                 <>
                   <h3 className="calc-h">Your target</h3>
                   <div className="field" style={{ marginBottom: 12 }}>
@@ -326,12 +362,45 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
                       <option value="profit">Hitting a profit number</option>
                     </select>
                   </div>
-                  {s.method === "percent" ? (
-                    <Field id={id("maxAllInPct")} label="Max all-in (% of ARV)" suffix="%" value={s.values.maxAllInPct} onChange={(v) => setValue(i, "maxAllInPct", v)} />
-                  ) : (
-                    <Field id={id("desiredProfit")} label="Profit you want" prefix="$" value={s.values.desiredProfit} onChange={(v) => setValue(i, "desiredProfit", v)} />
-                  )}
-                  <Field id={id("sellCostPct")} label="Selling costs: agent + closing (% of ARV)" suffix="%" value={s.values.sellCostPct} onChange={(v) => setValue(i, "sellCostPct", v)} />
+                  {s.method === "percent"
+                    ? f("maxAllInPct", "Max all-in (% of ARV)", { suffix: "%" })
+                    : f("desiredProfit", "Profit you want", { prefix: "$" })}
+                  {f("sellCostPct", "Cost to sell: agent + closing (% of ARV)", { suffix: "%" })}
+                </>
+              )}
+
+              {mode === "rental" && (
+                <>
+                  <h3 className="calc-h">The rent</h3>
+                  <div className="form-grid">
+                    {f("monthlyRent", "Monthly rent", { prefix: "$" })}
+                    {f("vacancyPct", "Vacancy", { suffix: "%" })}
+                  </div>
+                  {f("monthlyExpenses", "Monthly expenses (taxes, insurance, upkeep, management)", { prefix: "$" })}
+                  <label className="switch" style={{ margin: "4px 0 12px" }}>
+                    <input type="checkbox" role="switch" checked={s.useCapRate} onChange={(e) => update(i, { useCapRate: e.target.checked })} />
+                    <span className="switch-track" aria-hidden="true" />
+                    <span>Value with a cap rate (5+ units)</span>
+                  </label>
+                  {s.useCapRate &&
+                    f("targetCapPct", "Cap rate", {
+                      suffix: "%",
+                      hint: "Buildings with 5+ units are valued on income. A lower cap rate means a higher ARV.",
+                    })}
+
+                  <h3 className="calc-h">The refi loan</h3>
+                  <div className="form-grid">
+                    {f("targetDscr", "DSCR you need", { hint: "NOI ÷ loan payment. Lenders often want 1.20–1.30." })}
+                    {f("ltvPct", "Max loan (% of ARV)", { suffix: "%" })}
+                  </div>
+                  <div className="form-grid">
+                    {f("interestRate", "Interest rate", { suffix: "%" })}
+                    {f("termYears", "Loan term (years)")}
+                  </div>
+                  <div className="form-grid">
+                    {f("refiClosing", "Refi closing costs", { prefix: "$" })}
+                    {f("cashLeftIn", "Cash you'll leave in", { prefix: "$" })}
+                  </div>
                 </>
               )}
 
