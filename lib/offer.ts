@@ -19,17 +19,21 @@
 //   max offer = ARV − selling costs − repairs − closing − holding − fee paid − profit
 //   e.g. same numbers, profit 30,000 → 200,000 − 16,000 − 40,000 − 3,000 − 5,000 − 30,000 = 106,000
 //
-// RENT, worked backward from the DSCR you need (buy, fix, rent, refinance):
-//   NOI / month   = rent × (1 − vacancy%) − monthly expenses
-//   DSCR          = NOI ÷ loan payment (same definition the project Analysis tab uses)
-//   max payment   = NOI ÷ target DSCR → max loan by DSCR (amortized at the rate/term)
+// RENT, worked backward from the DSCR your lender needs (buy, fix, rent, refi).
+// DSCR is lender style: gross rent ÷ PITIA (loan payment + taxes + insurance
+// + HOA). Vacancy and other expenses don't count toward DSCR, but they do
+// count in cash flow and NOI.
+//   max PITIA     = rent ÷ target DSCR
+//   max payment   = max PITIA − taxes − insurance − HOA → max loan (amortized at the rate/term)
 //   refi loan     = the smaller of that and ARV × LTV%
 //   max offer     = refi loan + cash you'll leave in − repairs − closing − holding − refi closing − fee paid
+//   NOI / month   = rent × (1 − vacancy%) − taxes − insurance − HOA − other expenses
 //   ARV is typed in, or for 5+ unit buildings, yearly NOI ÷ cap rate.
-//   e.g. rent 1,600, vacancy 8%, expenses 450 → NOI 1,022/mo (12,264/yr)
-//        DSCR 1.30 → max payment 786.15; 7.5% / 30 yr → max loan ≈ 112,434
-//        ARV 200,000 × 75% = 150,000, so DSCR is the limit: loan ≈ 112,434
-//        costs 40,000 + 3,000 + 5,000 + 3,000 refi closing → max offer ≈ 61,434
+//   e.g. rent 1,600, taxes 180, insurance 100, no HOA, DSCR 1.25
+//        → max PITIA 1,280 → max payment 1,000; 7.5% / 30 yr → max loan ≈ 143,018
+//        ARV 200,000 × 75% = 150,000, so DSCR is the limit: loan ≈ 143,018
+//        costs 40,000 + 3,000 + 5,000 + 3,000 refi closing → max offer ≈ 92,018
+//        cash flow with 8% vacancy and 170 other: 1,472 − 180 − 100 − 170 − 1,000 = 22/mo
 
 export type OfferMode = "wholesale" | "flip" | "rental";
 export type FlipMethod = "percent" | "profit";
@@ -54,7 +58,10 @@ export type OfferInputs = {
   // Rent
   monthlyRent: number;
   vacancyPct: number;
-  monthlyExpenses: number;
+  taxesMonthly: number;
+  insuranceMonthly: number;
+  hoaMonthly: number;
+  otherExpenses: number; // management, upkeep, reserves — not part of DSCR
   useCapRate: boolean; // value 5+ unit buildings from NOI ÷ cap rate
   targetCapPct: number;
   ltvPct: number;
@@ -79,8 +86,9 @@ export type OfferResult = {
   noiMonthly?: number;
   loan?: number;
   loanLimitedBy?: "dscr" | "ltv";
-  monthlyPayment?: number;
-  dscr?: number | null;
+  monthlyPayment?: number; // principal + interest
+  pitia?: number; // payment + taxes + insurance + HOA
+  dscr?: number | null; // rent ÷ PITIA
   monthlyCashFlow?: number;
   valuedByCapRate?: boolean;
 };
@@ -122,15 +130,17 @@ export function calculateOffer(mode: OfferMode, i: OfferInputs): OfferResult {
   const holding = i.holdingMonthly * i.holdMonths;
 
   if (mode === "rental") {
-    const noiMonthly = i.monthlyRent * (1 - i.vacancyPct / 100) - i.monthlyExpenses;
+    const tih = i.taxesMonthly + i.insuranceMonthly + i.hoaMonthly;
+    const noiMonthly = i.monthlyRent * (1 - i.vacancyPct / 100) - tih - i.otherExpenses;
     const valuedByCapRate = i.useCapRate && i.targetCapPct > 0;
     const arv = valuedByCapRate ? Math.max(0, (noiMonthly * 12) / (i.targetCapPct / 100)) : i.arv;
     const loanByLtv = Math.max(0, arv * (i.ltvPct / 100));
     const loanByDscr =
-      i.targetDscr > 0 ? loanForPayment(noiMonthly / i.targetDscr, i.interestRate, i.termYears) : loanByLtv;
+      i.targetDscr > 0 ? loanForPayment(i.monthlyRent / i.targetDscr - tih, i.interestRate, i.termYears) : loanByLtv;
     const loan = Math.min(loanByLtv, loanByDscr);
     const loanLimitedBy = loanByDscr < loanByLtv ? "dscr" : "ltv";
     const monthlyPayment = loanPayment(loan, i.interestRate, i.termYears);
+    const pitia = monthlyPayment + tih;
     const costs = i.repairs + i.buyClosing + holding + i.refiClosing + i.wholesaleFee;
     const maxOffer = loan + i.cashLeftIn - costs;
     const allIn = maxOffer + costs;
@@ -143,7 +153,8 @@ export function calculateOffer(mode: OfferMode, i: OfferInputs): OfferResult {
       loan: r(loan),
       loanLimitedBy,
       monthlyPayment: r(monthlyPayment),
-      dscr: monthlyPayment > 0 ? noiMonthly / monthlyPayment : null,
+      pitia: r(pitia),
+      dscr: pitia > 0 ? i.monthlyRent / pitia : null,
       monthlyCashFlow: r(noiMonthly - monthlyPayment),
       valuedByCapRate,
     };
@@ -173,7 +184,7 @@ export function offerFormula(mode: OfferMode, i: OfferInputs): string {
   }
   if (mode === "rental") {
     const arv = i.useCapRate ? `ARV = yearly NOI ÷ ${i.targetCapPct || 0}% cap rate. ` : "";
-    return `${arv}Refi loan = the smaller of ARV × ${i.ltvPct || 0}% and the loan whose payment keeps DSCR (NOI ÷ payment) at ${i.targetDscr || 0}. Max offer = loan + cash left in − repairs − closing − holding − refi closing − fee paid`;
+    return `${arv}Refi loan = the smaller of ARV × ${i.ltvPct || 0}% and the loan that keeps DSCR = rent ÷ (payment + taxes + insurance + HOA) at ${i.targetDscr || 0}. Max offer = loan + cash left in − repairs − closing − holding − refi closing − fee paid`;
   }
   return i.method === "profit"
     ? "Max offer = ARV − selling costs − repairs − closing − holding − fee paid − your profit"

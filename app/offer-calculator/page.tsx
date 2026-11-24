@@ -26,7 +26,7 @@ const FAQ = [
   },
   {
     q: "How does the DSCR work?",
-    a: "DSCR here is net operating income (rent after vacancy, minus expenses) divided by the monthly loan payment. Put in the DSCR your lender needs, plus the rate and term, and the calculator finds the biggest refi loan that still meets it. If 75% of ARV (or whatever max you set) is smaller, that limit wins instead. Anything you can't refinance out has to come off the price, unless you're OK leaving some cash in.",
+    a: "It's figured the way DSCR lenders do it: monthly rent divided by the full payment, which is the loan payment plus property taxes, insurance and HOA. Put in the DSCR your lender needs, plus the rate and term, and the calculator finds the biggest refi loan that still meets it. If your max loan-to-value is smaller, that limit wins instead. Vacancy and other expenses don't count toward DSCR, but they're in your cash flow. Anything you can't refinance out comes off the price, unless you're OK leaving some cash in.",
   },
   {
     q: "When should I use a cap rate?",

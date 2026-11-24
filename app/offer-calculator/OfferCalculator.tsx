@@ -26,12 +26,15 @@ const DEFAULT_VALUES: Record<NumberKey, string> = {
   desiredProfit: "30000",
   monthlyRent: "1650",
   vacancyPct: "8",
-  monthlyExpenses: "475",
+  taxesMonthly: "190",
+  insuranceMonthly: "110",
+  hoaMonthly: "0",
+  otherExpenses: "175",
   targetCapPct: "8",
   ltvPct: "75",
   interestRate: "7.5",
   termYears: "30",
-  targetDscr: "1.30",
+  targetDscr: "1.25",
   cashLeftIn: "0",
   refiClosing: "3000",
 };
@@ -193,7 +196,7 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
         : `Holding: ${money(inputs.holdingMonthly)}/mo × ${inputs.holdMonths} mo.`,
       mode !== "wholesale" && inputs.wholesaleFee ? `Assignment fee paid: ${money(inputs.wholesaleFee)}.` : "",
       mode === "rental"
-        ? `Refi loan: ${money(res.loan)} at ${inputs.interestRate}% for ${inputs.termYears} yrs, DSCR ${res.dscr?.toFixed(2) ?? "—"}. Vacancy ${inputs.vacancyPct}% is included in operating expenses.`
+        ? `Refi loan: ${money(res.loan)} at ${inputs.interestRate}% for ${inputs.termYears} yrs, lender DSCR ${res.dscr?.toFixed(2) ?? "—"} (rent ÷ PITIA). Operating expenses include taxes, insurance, HOA, other expenses and ${inputs.vacancyPct}% vacancy.`
         : "",
       `Max offer: ${money(res.maxOffer)}.`,
     ].filter(Boolean).join(" ");
@@ -205,10 +208,11 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
     });
     if (mode !== "wholesale") q.set("purchase_closing_costs", String(inputs.buyClosing));
     if (mode === "rental") {
-      // The project's DSCR uses rent − operating expenses, so vacancy is
-      // folded into expenses to keep NOI the same as here.
+      // Projects work from rent − operating expenses, so every expense plus
+      // vacancy goes into operating expenses to keep NOI the same as here.
       q.set("monthly_rent", String(inputs.monthlyRent));
-      q.set("monthly_operating_expenses", String(Math.round(inputs.monthlyExpenses + inputs.monthlyRent * (inputs.vacancyPct / 100))));
+      const opex = inputs.taxesMonthly + inputs.insuranceMonthly + inputs.hoaMonthly + inputs.otherExpenses;
+      q.set("monthly_operating_expenses", String(Math.round(opex + inputs.monthlyRent * (inputs.vacancyPct / 100))));
       q.set("refinance_ltv_pct", String(inputs.ltvPct));
       q.set("refinance_rate", String(inputs.interestRate));
       q.set("refinance_term_months", String(Math.round(inputs.termYears * 12)));
@@ -304,8 +308,9 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
                     <>
                       {res.valuedByCapRate && <><dt>ARV from cap rate</dt><dd>{money(res.arv)}</dd></>}
                       <dt>Refi loan ({res.loanLimitedBy === "dscr" ? "set by DSCR" : "set by LTV"})</dt><dd>{money(res.loan)}</dd>
-                      <dt>Payment / month</dt><dd>{money(res.monthlyPayment)}</dd>
-                      <dt>DSCR</dt><dd>{res.dscr == null ? "—" : res.dscr.toFixed(2)}</dd>
+                      <dt>Loan payment / month</dt><dd>{money(res.monthlyPayment)}</dd>
+                      <dt>With taxes, insurance, HOA</dt><dd>{money(res.pitia)}</dd>
+                      <dt>DSCR (rent ÷ that)</dt><dd>{res.dscr == null ? "—" : res.dscr.toFixed(2)}</dd>
                       <dt>NOI / month</dt><dd>{money(res.noiMonthly)}</dd>
                       <dt>Cash flow / month</dt><dd>{money(res.monthlyCashFlow)}</dd>
                       <dt>All-in cost</dt><dd>{money(res.allIn)}</dd>
@@ -376,7 +381,17 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
                     {f("monthlyRent", "Monthly rent", { prefix: "$" })}
                     {f("vacancyPct", "Vacancy", { suffix: "%" })}
                   </div>
-                  {f("monthlyExpenses", "Monthly expenses (taxes, insurance, upkeep, management)", { prefix: "$" })}
+                  <div className="form-grid">
+                    {f("taxesMonthly", "Property taxes / month", { prefix: "$" })}
+                    {f("insuranceMonthly", "Insurance / month", { prefix: "$" })}
+                  </div>
+                  <div className="form-grid">
+                    {f("hoaMonthly", "HOA / month", { prefix: "$" })}
+                    {f("otherExpenses", "Other expenses / month", {
+                      prefix: "$",
+                      hint: "Management, upkeep, reserves. Counts in cash flow, not DSCR.",
+                    })}
+                  </div>
                   <label className="switch" style={{ margin: "4px 0 12px" }}>
                     <input type="checkbox" role="switch" checked={s.useCapRate} onChange={(e) => update(i, { useCapRate: e.target.checked })} />
                     <span className="switch-track" aria-hidden="true" />
@@ -390,7 +405,9 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
 
                   <h3 className="calc-h">The refi loan</h3>
                   <div className="form-grid">
-                    {f("targetDscr", "DSCR you need", { hint: "NOI ÷ loan payment. Lenders often want 1.20–1.30." })}
+                    {f("targetDscr", "DSCR you need", {
+                      hint: "Rent ÷ (loan payment + taxes + insurance + HOA). DSCR lenders usually want 1.00–1.25.",
+                    })}
                     {f("ltvPct", "Max loan (% of ARV)", { suffix: "%" })}
                   </div>
                   <div className="form-grid">
