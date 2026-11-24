@@ -137,6 +137,12 @@ export default async function LandingPage() {
               <Link href="/signup" className="btn btn-primary btn-lg">Start tracking free</Link>
               <a href="#how-it-works" className="btn btn-outline btn-lg">See how it works</a>
             </div>
+            <p className="small" style={{ marginTop: 16 }}>
+              Still running numbers?{" "}
+              <Link href="/offer-calculator" style={{ fontWeight: 600, textDecoration: "underline" }}>
+                Try the free max offer calculator
+              </Link>
+            </p>
           </div>
         </section>
 

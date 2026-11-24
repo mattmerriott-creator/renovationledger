@@ -27,7 +27,12 @@ export default function PosthogCapture({
   useEffect(() => {
     if (!active) return;
     window.posthog?.capture(event, properties);
-    router.replace(pathname);
+    // Drop only the one-shot trigger params, keeping any others on the URL.
+    const params = new URLSearchParams(window.location.search);
+    params.delete("welcome");
+    params.delete("first");
+    const rest = params.toString();
+    router.replace(rest ? `${pathname}?${rest}` : pathname);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
