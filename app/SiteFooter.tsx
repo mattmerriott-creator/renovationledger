@@ -12,6 +12,7 @@ export default function SiteFooter() {
         </div>
         <div style={{ textAlign: "right" }}>
           <p className="small muted" style={{ marginBottom: 8, display: "flex", gap: 16, justifyContent: "flex-end" }}>
+            <Link href="/offer-calculator" style={{ color: "inherit" }}>Offer calculator</Link>
             <Link href="/contact" style={{ color: "inherit" }}>Contact</Link>
             <Link href="/privacy" style={{ color: "inherit" }}>Privacy</Link>
             <Link href="/terms" style={{ color: "inherit" }}>Terms</Link>

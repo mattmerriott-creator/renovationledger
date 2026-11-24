@@ -13,6 +13,7 @@ export default async function SiteHeader() {
         </Link>
         <nav className="nav-links" aria-label="Main navigation">
           <Link href="/#features" className="hide-mobile">Features</Link>
+          <Link href="/offer-calculator" className="hide-mobile">Offer calculator</Link>
           <Link href="/#how-it-works" className="hide-mobile">How it works</Link>
           <Link href="/#faq" className="hide-mobile">FAQ</Link>
           <Link href="/contact" className="hide-mobile">Contact</Link>

@@ -11,9 +11,10 @@ export const metadata: Metadata = {
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
+  const nextQuery = next ? `?next=${encodeURIComponent(next)}` : "";
   return (
     <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ width: "100%", maxWidth: 420 }}>
@@ -25,6 +26,7 @@ export default async function SignupPage({
           <p className="small secondary" style={{ marginBottom: 20 }}>Free while in early access.</p>
           {error && <div className="form-error">{error}</div>}
           <form action={signup}>
+            {next && <input type="hidden" name="next" value={next} />}
             <div className="field">
               <label htmlFor="name">Name</label>
               <input id="name" name="name" required autoComplete="name" />
@@ -49,7 +51,7 @@ export default async function SignupPage({
           </p>
         </div>
         <p className="small secondary" style={{ marginTop: 16 }}>
-          Already have an account? <Link href="/login" style={{ fontWeight: 600 }}>Log in</Link>
+          Already have an account? <Link href={`/login${nextQuery}`} style={{ fontWeight: 600 }}>Log in</Link>
         </p>
       </div>
     </main>

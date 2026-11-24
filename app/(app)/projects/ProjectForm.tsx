@@ -3,7 +3,7 @@ import ArvField from "./ArvField";
 
 // Shared form fields for creating and editing a project.
 // Wrap in a <form action={...}> in the page that uses it.
-export default function ProjectFormFields({ project }: { project?: Project }) {
+export default function ProjectFormFields({ project }: { project?: Partial<Project> }) {
   const p = project;
   return (
     <>

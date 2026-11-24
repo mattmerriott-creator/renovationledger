@@ -31,37 +31,53 @@ function num(fd: FormData, key: string): number {
 
 // ---------- Auth ----------
 
+// Where to send someone after signup/login. Only same-site paths, so a link
+// can't bounce a new user off to another site.
+function safeNext(fd: FormData): string | null {
+  const next = str(fd, "next");
+  if (!next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return null;
+  return next;
+}
+
+// Keeps ?next= on the error redirect so a failed attempt doesn't lose it.
+function withNext(path: string, next: string | null): string {
+  return next ? `${path}&next=${encodeURIComponent(next)}` : path;
+}
+
 export async function signup(fd: FormData) {
   const name = str(fd, "name");
   const email = str(fd, "email");
   const password = String(fd.get("password") ?? "");
+  const next = safeNext(fd);
 
-  if (!name || !email || !email.includes("@")) redirect("/signup?error=Enter your name and a valid email.");
-  if (password.length < 8) redirect("/signup?error=Password must be at least 8 characters.");
+  if (!name || !email || !email.includes("@")) redirect(withNext("/signup?error=Enter your name and a valid email.", next));
+  if (password.length < 8) redirect(withNext("/signup?error=Password must be at least 8 characters.", next));
 
   const db = getDb();
   const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
-  if (existing) redirect("/signup?error=An account with that email already exists. Try logging in.");
+  if (existing) redirect(withNext("/signup?error=An account with that email already exists. Try logging in.", next));
 
   const result = db
     .prepare("INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)")
     .run(email, name, hashPassword(password));
   await createSession(Number(result.lastInsertRowid));
-  redirect("/dashboard?welcome=1");
+  // welcome=1 fires the signup analytics event wherever the user lands.
+  redirect(next ? `${next}${next.includes("?") ? "&" : "?"}welcome=1` : "/dashboard?welcome=1");
 }
 
 export async function login(fd: FormData) {
   const email = str(fd, "email");
   const password = String(fd.get("password") ?? "");
+  const next = safeNext(fd);
   const db = getDb();
   const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as
     | { id: number; password_hash: string }
     | undefined;
   if (!user || !verifyPassword(password, user.password_hash)) {
-    redirect("/login?error=Wrong email or password.");
+    redirect(withNext("/login?error=Wrong email or password.", next));
   }
   await createSession(user.id);
-  redirect("/dashboard");
+  redirect(next ?? "/dashboard");
 }
 
 export async function logout() {
