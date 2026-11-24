@@ -100,3 +100,58 @@ export function createProjectRecord(
 
   return { projectId, isFirstProject };
 }
+
+// Columns of a table, minus the ones a copy must set itself.
+function copyableColumns(table: string, skip: string[]): string[] {
+  const cols = getDb().prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  return cols.map((c) => c.name).filter((c) => !skip.includes(c));
+}
+
+// Copies a project as a starting point for a similar deal: every number and
+// assumption on the project, the budget (sub-items kept under their groups),
+// holding costs and hand-entered comps. Transactions, draws, photos and
+// receipts belong to the original deal and are not copied.
+// Returns the new project's id, or null if the user doesn't own the source.
+export function cloneProjectRecord(userId: number, sourceId: number): number | null {
+  const db = getDb();
+  const source = db.prepare("SELECT id, name FROM projects WHERE id = ? AND user_id = ?").get(sourceId, userId) as
+    | { id: number; name: string }
+    | undefined;
+  if (!source) return null;
+
+  return db.transaction(() => {
+    const projectCols = copyableColumns("projects", ["id", "created_at"]).join(", ");
+    const newId = Number(
+      db.prepare(`INSERT INTO projects (${projectCols}) SELECT ${projectCols} FROM projects WHERE id = ?`).run(sourceId)
+        .lastInsertRowid
+    );
+    db.prepare(
+      "UPDATE projects SET name = ?, status = 'planning', archived = 0, completed_summary = '' WHERE id = ?"
+    ).run(`Copy of ${source.name}`.slice(0, 200), newId);
+
+    // Budget: top-level rows first, then sub-items re-pointed at the new parents.
+    const budgetCols = copyableColumns("budget_items", ["id", "project_id", "parent_id"]);
+    const rows = db
+      .prepare("SELECT * FROM budget_items WHERE project_id = ? ORDER BY parent_id IS NOT NULL, sort, id")
+      .all(sourceId) as Record<string, unknown>[];
+    const insertBudget = db.prepare(
+      `INSERT INTO budget_items (project_id, parent_id, ${budgetCols.join(", ")}) VALUES (?, ?, ${budgetCols.map(() => "?").join(", ")})`
+    );
+    const newIds = new Map<number, number>();
+    for (const row of rows) {
+      const oldParent = row.parent_id as number | null;
+      const parent = oldParent === null ? null : newIds.get(oldParent) ?? null;
+      const res = insertBudget.run(newId, parent, ...budgetCols.map((c) => row[c] as never));
+      newIds.set(row.id as number, Number(res.lastInsertRowid));
+    }
+
+    for (const table of ["holding_cost_items", "comps"]) {
+      const cols = copyableColumns(table, ["id", "project_id"]).join(", ");
+      db.prepare(`INSERT INTO ${table} (project_id, ${cols}) SELECT ?, ${cols} FROM ${table} WHERE project_id = ?`).run(
+        newId,
+        sourceId
+      );
+    }
+    return newId;
+  })();
+}

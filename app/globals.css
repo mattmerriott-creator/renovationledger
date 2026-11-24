@@ -353,3 +353,17 @@ table.data tfoot td { font-weight: 700; border-top: 2px solid var(--color-dark);
   .calc-result { background: #fff; color: #000; border: 1px solid #000; }
   .calc-result .stat-number { color: #000 !important; }
 }
+
+/* ---------- Dashboard filters ---------- */
+.dash-filters { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px;
+  border: 1.5px solid var(--color-border); font-size: 14px; font-weight: 500; color: var(--color-text-secondary);
+}
+.chip:hover { border-color: var(--color-dark); color: var(--color-text-primary); }
+.chip-on { background: var(--color-dark); border-color: var(--color-dark); color: var(--color-white); }
+.chip-on:hover { color: var(--color-white); }
+.chip-count { font-size: 12px; opacity: 0.7; }
+.dash-search { display: flex; gap: 8px; flex: 1 1 280px; max-width: 420px; }
+.dash-search input { flex: 1; }

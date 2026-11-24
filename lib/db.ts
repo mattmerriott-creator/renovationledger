@@ -189,6 +189,9 @@ function migrate(db: Database.Database) {
   addColumnIfMissing(db, "projects", "monthly_taxes", "REAL NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "projects", "monthly_insurance", "REAL NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "projects", "monthly_hoa", "REAL NOT NULL DEFAULT 0");
+  // Archived projects drop off the dashboard and out of portfolio totals but
+  // keep their status, so restoring one puts it back exactly as it was.
+  addColumnIfMissing(db, "projects", "archived", "INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "projects", "refinance_rate", "REAL NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "projects", "refinance_term_months", "INTEGER NOT NULL DEFAULT 360");
 
@@ -321,6 +324,7 @@ export type Project = {
   monthly_taxes: number;
   monthly_insurance: number;
   monthly_hoa: number;
+  archived: number; // 0 or 1
   refinance_rate: number;
   refinance_term_months: number;
 };
