@@ -39,6 +39,9 @@ export type ProjectInput = {
   exit_date?: string;
   monthly_rent?: number;
   monthly_operating_expenses?: number;
+  monthly_taxes?: number;
+  monthly_insurance?: number;
+  monthly_hoa?: number;
   refinance_rate?: number;
   refinance_term_months?: number;
 };
@@ -60,8 +63,9 @@ export function createProjectRecord(
          exit_strategy, loan_type, loan_term_months, interest_rate, points, down_payment,
          purchase_closing_costs, realtor_fee_pct, selling_closing_costs, refinance_ltv_pct,
          refinance_closing_costs, exit_date, monthly_rent, monthly_operating_expenses,
+         monthly_taxes, monthly_insurance, monthly_hoa,
          refinance_rate, refinance_term_months)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     )
     .run(
       userId, input.name, input.address, input.city ?? "", (input.state ?? "").toUpperCase(), input.zip ?? "",
@@ -79,6 +83,7 @@ export function createProjectRecord(
       input.purchase_closing_costs ?? 0, input.realtor_fee_pct || 6, input.selling_closing_costs ?? 0,
       input.refinance_ltv_pct || 75, input.refinance_closing_costs ?? 0, input.exit_date ?? "",
       input.monthly_rent ?? 0, input.monthly_operating_expenses ?? 0,
+      input.monthly_taxes ?? 0, input.monthly_insurance ?? 0, input.monthly_hoa ?? 0,
       input.refinance_rate ?? 0, Math.round(input.refinance_term_months ?? 0) || 360
     );
   const projectId = Number(result.lastInsertRowid);

@@ -50,7 +50,9 @@ export type BrrrrAnalysis = DealAnalysisBase & {
   cashLeftInDeal: number;
   newLoanMonthlyPayment: number;
   noi: number;
-  dscr: number | null;
+  taxesInsuranceHoa: number;
+  pitia: number; // new loan payment + taxes + insurance + HOA
+  dscr: number | null; // lender style: rent ÷ PITIA
   monthlyCashFlow: number;
 };
 
@@ -92,8 +94,13 @@ export function getDealAnalysis(projectId: number): DealAnalysis {
     const cashOutAtRefi = newLoanAmount - project.loan_amount - project.refinance_closing_costs;
     const cashLeftInDeal = cashInvested - cashOutAtRefi;
     const newLoanMonthlyPayment = monthlyPayment(newLoanAmount, project.refinance_rate, project.refinance_term_months);
-    const noi = project.monthly_rent - project.monthly_operating_expenses;
-    const dscr = newLoanMonthlyPayment > 0 ? noi / newLoanMonthlyPayment : null;
+    // DSCR the way DSCR lenders figure it: rent ÷ (payment + taxes +
+    // insurance + HOA). Other expenses count in NOI and cash flow only.
+    // e.g. rent 1,600, payment 1,000, taxes 180, insurance 100 → 1,600 ÷ 1,280 = 1.25
+    const taxesInsuranceHoa = project.monthly_taxes + project.monthly_insurance + project.monthly_hoa;
+    const pitia = newLoanMonthlyPayment + taxesInsuranceHoa;
+    const noi = project.monthly_rent - taxesInsuranceHoa - project.monthly_operating_expenses;
+    const dscr = pitia > 0 ? project.monthly_rent / pitia : null;
     const monthlyCashFlow = noi - newLoanMonthlyPayment;
     return {
       ...base,
@@ -103,6 +110,8 @@ export function getDealAnalysis(projectId: number): DealAnalysis {
       cashLeftInDeal,
       newLoanMonthlyPayment,
       noi,
+      taxesInsuranceHoa,
+      pitia,
       dscr,
       monthlyCashFlow,
     };

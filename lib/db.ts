@@ -183,6 +183,12 @@ function migrate(db: Database.Database) {
   addColumnIfMissing(db, "projects", "exit_date", "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing(db, "projects", "monthly_rent", "REAL NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "projects", "monthly_operating_expenses", "REAL NOT NULL DEFAULT 0");
+  // Split out for lender-style DSCR (rent ÷ payment + taxes + insurance + HOA).
+  // monthly_operating_expenses then holds everything else (management,
+  // upkeep, vacancy). Older projects keep their lump sum there.
+  addColumnIfMissing(db, "projects", "monthly_taxes", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "projects", "monthly_insurance", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "projects", "monthly_hoa", "REAL NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "projects", "refinance_rate", "REAL NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "projects", "refinance_term_months", "INTEGER NOT NULL DEFAULT 360");
 
@@ -311,7 +317,10 @@ export type Project = {
   refinance_closing_costs: number;
   exit_date: string;
   monthly_rent: number;
-  monthly_operating_expenses: number;
+  monthly_operating_expenses: number; // other expenses: management, upkeep, vacancy
+  monthly_taxes: number;
+  monthly_insurance: number;
+  monthly_hoa: number;
   refinance_rate: number;
   refinance_term_months: number;
 };

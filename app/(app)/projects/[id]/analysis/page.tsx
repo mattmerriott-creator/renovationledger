@@ -140,20 +140,32 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
             </thead>
             <tbody>
               <tr><td className="muted">Monthly rent</td><td className="num">{money(project.monthly_rent)}</td></tr>
-              <tr><td className="muted">Monthly operating expenses</td><td className="num">{money(project.monthly_operating_expenses)}</td></tr>
+              <tr><td className="muted">Property taxes</td><td className="num">{money(project.monthly_taxes)}</td></tr>
+              <tr><td className="muted">Insurance</td><td className="num">{money(project.monthly_insurance)}</td></tr>
+              {project.monthly_hoa > 0 && <tr><td className="muted">HOA</td><td className="num">{money(project.monthly_hoa)}</td></tr>}
+              <tr><td className="muted">Other expenses (management, upkeep, vacancy)</td><td className="num">{money(project.monthly_operating_expenses)}</td></tr>
               <tr><td className="muted">Net operating income (NOI)</td><td className="num">{money(a.noi)}</td></tr>
               <tr>
                 <td className="muted">New loan payment ({project.refinance_rate}% / {project.refinance_term_months} mo.)</td>
                 <td className="num">{money(a.newLoanMonthlyPayment)}</td>
               </tr>
+              <tr><td className="muted">Payment + taxes, insurance, HOA</td><td className="num">{money(a.pitia)}</td></tr>
             </tbody>
             <tfoot>
               <tr>
-                <td>DSCR</td>
+                <td>DSCR = rent ÷ (payment + taxes, insurance, HOA)</td>
                 <td className="num" style={{ fontWeight: 700, color: dscrFlag ? "var(--color-danger)" : undefined }}>
                   {a.dscr !== null ? `${a.dscr.toFixed(2)}x` : "—"}
                 </td>
               </tr>
+              {a.taxesInsuranceHoa === 0 && project.monthly_operating_expenses > 0 && (
+                <tr>
+                  <td colSpan={2} className="small muted" style={{ paddingTop: 8 }}>
+                    No taxes or insurance entered, so DSCR may read high. If they&apos;re inside other expenses, move
+                    them to their own fields under Edit project details.
+                  </td>
+                </tr>
+              )}
               <tr>
                 <td className="muted">Monthly cash flow</td>
                 <td className="num" style={{ fontWeight: 700, color: a.monthlyCashFlow < 0 ? "var(--color-danger)" : undefined }}>

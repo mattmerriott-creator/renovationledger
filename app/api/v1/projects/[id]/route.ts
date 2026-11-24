@@ -16,6 +16,7 @@ const NUMBER_FIELDS = [
   "loan_term_months", "interest_rate", "points", "down_payment",
   "purchase_closing_costs", "realtor_fee_pct", "selling_closing_costs", "refinance_ltv_pct",
   "refinance_closing_costs", "monthly_rent", "monthly_operating_expenses",
+  "monthly_taxes", "monthly_insurance", "monthly_hoa",
   "refinance_rate", "refinance_term_months",
 ] as const;
 
