@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { calculateOffer, offerFormula, OfferInputs, OfferMode, FlipMethod } from "@/lib/offer";
 import { money, pct } from "@/lib/format";
 
-type NumberKey = Exclude<keyof OfferInputs, "method">;
-type Scenario = { name: string; method: FlipMethod; values: Record<NumberKey, string> };
+type NumberKey = Exclude<keyof OfferInputs, "method" | "useCapRate">;
+type Scenario = { name: string; method: FlipMethod; useCapRate: boolean; values: Record<NumberKey, string> };
 type CalcState = { mode: OfferMode; scenarios: Scenario[] };
 
 const MAX_SCENARIOS = 3;
@@ -29,7 +29,7 @@ const DEFAULT_VALUES: Record<NumberKey, string> = {
 
 const DEFAULT_STATE: CalcState = {
   mode: "flip",
-  scenarios: [{ name: "Scenario 1", method: "percent", values: DEFAULT_VALUES }],
+  scenarios: [{ name: "Scenario 1", method: "percent", useCapRate: false, values: DEFAULT_VALUES }],
 };
 
 function toNumber(s: string): number {
@@ -38,7 +38,7 @@ function toNumber(s: string): number {
 }
 
 function toInputs(s: Scenario): OfferInputs {
-  const out = { method: s.method } as OfferInputs;
+  const out = { method: s.method, useCapRate: s.useCapRate } as OfferInputs;
   for (const k of Object.keys(DEFAULT_VALUES) as NumberKey[]) out[k] = toNumber(s.values[k] ?? "");
   return out;
 }
@@ -60,6 +60,7 @@ function parseState(raw: string | null): CalcState | null {
       return {
         name: typeof s?.name === "string" && s.name.trim() ? s.name.slice(0, 40) : `Scenario ${i + 1}`,
         method: s?.method === "profit" ? "profit" : "percent",
+        useCapRate: s?.useCapRate === true,
         values,
       };
     });
@@ -70,9 +71,10 @@ function parseState(raw: string | null): CalcState | null {
 }
 
 function Field({
-  id, label, value, onChange, prefix, suffix,
+  id, label, value, onChange, prefix, suffix, readOnly, hint,
 }: {
-  id: string; label: string; value: string; onChange: (v: string) => void; prefix?: string; suffix?: string;
+  id: string; label: string; value: string; onChange: (v: string) => void;
+  prefix?: string; suffix?: string; readOnly?: boolean; hint?: string;
 }) {
   return (
     <div className="field" style={{ marginBottom: 12 }}>
@@ -84,10 +86,17 @@ function Field({
           inputMode="decimal"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          style={{ paddingLeft: prefix ? 26 : undefined, paddingRight: suffix ? 30 : undefined }}
+          readOnly={readOnly}
+          aria-describedby={hint ? `${id}-hint` : undefined}
+          style={{
+            paddingLeft: prefix ? 26 : undefined,
+            paddingRight: suffix ? 30 : undefined,
+            ...(readOnly ? { background: "var(--color-cream-alt)", color: "var(--color-text-secondary)" } : {}),
+          }}
         />
         {suffix && <span className="affix affix-post" aria-hidden="true">{suffix}</span>}
       </div>
+      {hint && <p id={`${id}-hint`} className="small muted" style={{ marginTop: 4 }}>{hint}</p>}
     </div>
   );
 }
@@ -168,7 +177,7 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
       `Max offer: ${money(res.maxOffer)}.`,
     ].filter(Boolean).join(" ");
     const q = new URLSearchParams({
-      arv: String(inputs.arv),
+      arv: String(res.arv),
       purchase_price: String(Math.max(0, res.maxOffer)),
       purchase_closing_costs: String(inputs.buyClosing),
       exit_strategy: state.mode === "rental" ? "brrrr" : "flip",
@@ -240,9 +249,8 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
                   <dt>All-in % of ARV</dt><dd>{pct(res.allInPctOfArv)}</dd>
                   {rental ? (
                     <>
+                      {res.valuedByCapRate && <><dt>ARV from cap rate</dt><dd>{money(res.arv)}</dd></>}
                       <dt>NOI per year</dt><dd>{money(res.noi)}</dd>
-                      <dt>Cap rate on cost</dt><dd>{pct(res.capOnCost)}</dd>
-                      <dt>Cap rate on ARV</dt><dd>{pct(res.capOnArv)}</dd>
                     </>
                   ) : (
                     <>
@@ -255,7 +263,15 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
               </div>
 
               <h3 className="calc-h">The property</h3>
-              <Field id={id("arv")} label="After-repair value (ARV)" prefix="$" value={s.values.arv} onChange={(v) => setValue(i, "arv", v)} />
+              <Field
+                id={id("arv")}
+                label="After-repair value (ARV)"
+                prefix="$"
+                value={rental && s.useCapRate ? String(res.arv) : s.values.arv}
+                onChange={(v) => setValue(i, "arv", v)}
+                readOnly={rental && s.useCapRate}
+                hint={rental && s.useCapRate ? "Figured from NOI ÷ cap rate. Turn off the cap rate switch to type your own." : undefined}
+              />
               <Field id={id("repairs")} label="Repair estimate" prefix="$" value={s.values.repairs} onChange={(v) => setValue(i, "repairs", v)} />
 
               <h3 className="calc-h">Your costs</h3>
@@ -274,7 +290,31 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
                     <Field id={id("vacancyPct")} label="Vacancy" suffix="%" value={s.values.vacancyPct} onChange={(v) => setValue(i, "vacancyPct", v)} />
                   </div>
                   <Field id={id("monthlyExpenses")} label="Monthly expenses (taxes, insurance, upkeep, management)" prefix="$" value={s.values.monthlyExpenses} onChange={(v) => setValue(i, "monthlyExpenses", v)} />
-                  <Field id={id("targetCapPct")} label="Cap rate you want on total cost" suffix="%" value={s.values.targetCapPct} onChange={(v) => setValue(i, "targetCapPct", v)} />
+
+                  <h3 className="calc-h">Your target</h3>
+                  <Field
+                    id={id("maxAllInPct")}
+                    label="Max all-in (% of ARV)"
+                    suffix="%"
+                    value={s.values.maxAllInPct}
+                    onChange={(v) => setValue(i, "maxAllInPct", v)}
+                    hint="Refi lenders usually lend 70–80% of value, so staying under that lets you pull your cash back out."
+                  />
+                  <label className="switch" style={{ margin: "4px 0 12px" }}>
+                    <input type="checkbox" role="switch" checked={s.useCapRate} onChange={(e) => update(i, { useCapRate: e.target.checked })} />
+                    <span className="switch-track" aria-hidden="true" />
+                    <span>Value with a cap rate (5+ units)</span>
+                  </label>
+                  {s.useCapRate && (
+                    <Field
+                      id={id("targetCapPct")}
+                      label="Cap rate"
+                      suffix="%"
+                      value={s.values.targetCapPct}
+                      onChange={(v) => setValue(i, "targetCapPct", v)}
+                      hint="Buildings with 5+ units are valued on income. A lower cap rate means a higher ARV."
+                    />
+                  )}
                 </>
               ) : (
                 <>

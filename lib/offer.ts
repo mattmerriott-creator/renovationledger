@@ -12,11 +12,14 @@
 //   max offer = ARV − selling costs − repairs − closing − holding − wholesale fee − profit
 //   e.g. same numbers, profit 30,000 → 200,000 − 16,000 − 40,000 − 3,000 − 5,000 − 30,000 = 106,000
 //
-// Rental, "hit a cap rate on total cost":
+// Rental: same % of ARV rule as a flip (a refi lender lends against value).
+// ARV is the number typed in, unless "value with a cap rate" is on (5+ unit
+// buildings, which are valued on income):
 //   NOI = rent × 12 × (1 − vacancy%) − monthly expenses × 12
-//   max all-in = NOI ÷ cap rate; max offer = max all-in − repairs − closing − holding − fee
-//   e.g. rent 1,600, vacancy 8%, expenses 450, cap 8% → NOI 17,664 − 5,400 = 12,264
-//        max all-in 153,300 → max offer 153,300 − 40,000 − 3,000 − 5,000 = 105,300
+//   ARV = NOI ÷ cap rate; max offer = ARV × cap% − repairs − closing − holding − fee
+//   e.g. rent 1,600, vacancy 8%, expenses 450 → NOI 17,664 − 5,400 = 12,264
+//        cap rate off, ARV 200,000, 75%, costs 48,000 → 150,000 − 48,000 = 102,000
+//        cap rate 8% → ARV 153,300 → 114,975 − 48,000 = 66,975
 
 export type OfferMode = "flip" | "rental";
 export type FlipMethod = "percent" | "profit";
@@ -38,18 +41,19 @@ export type OfferInputs = {
   vacancyPct: number;
   monthlyExpenses: number;
   targetCapPct: number;
+  useCapRate: boolean; // rental only: value the property from NOI ÷ cap rate
 };
 
 export type OfferResult = {
   maxOffer: number; // can be negative: the deal doesn't work at these numbers
+  arv: number; // the value used: typed in, or NOI ÷ cap rate
   holding: number;
   allIn: number; // max offer + repairs + closing + holding + wholesale fee
   allInPctOfArv: number | null;
   sellCosts: number;
   profit: number | null; // flip only
   noi: number | null; // rental only, per year
-  capOnCost: number | null; // rental only, percent
-  capOnArv: number | null; // rental only, percent
+  valuedByCapRate: boolean;
 };
 
 const r = (n: number) => Math.round(n);
@@ -61,19 +65,20 @@ export function calculateOffer(mode: OfferMode, i: OfferInputs): OfferResult {
 
   if (mode === "rental") {
     const noi = i.monthlyRent * 12 * (1 - i.vacancyPct / 100) - i.monthlyExpenses * 12;
-    const maxAllIn = i.targetCapPct > 0 ? noi / (i.targetCapPct / 100) : 0;
-    const maxOffer = maxAllIn - otherCosts;
+    const valuedByCapRate = i.useCapRate && i.targetCapPct > 0;
+    const arv = valuedByCapRate ? Math.max(0, noi / (i.targetCapPct / 100)) : i.arv;
+    const maxOffer = arv * (i.maxAllInPct / 100) - otherCosts;
     const allIn = maxOffer + otherCosts;
     return {
       maxOffer: r(maxOffer),
+      arv: r(arv),
       holding: r(holding),
       allIn: r(allIn),
-      allInPctOfArv: i.arv > 0 ? (allIn / i.arv) * 100 : null,
+      allInPctOfArv: arv > 0 ? (allIn / arv) * 100 : null,
       sellCosts: 0,
       profit: null,
       noi: r(noi),
-      capOnCost: allIn > 0 ? (noi / allIn) * 100 : null,
-      capOnArv: i.arv > 0 ? (noi / i.arv) * 100 : null,
+      valuedByCapRate,
     };
   }
 
@@ -84,21 +89,25 @@ export function calculateOffer(mode: OfferMode, i: OfferInputs): OfferResult {
   const allIn = maxOffer + otherCosts;
   return {
     maxOffer: r(maxOffer),
+    arv: r(i.arv),
     holding: r(holding),
     allIn: r(allIn),
     allInPctOfArv: i.arv > 0 ? (allIn / i.arv) * 100 : null,
     sellCosts: r(sellCosts),
     profit: r(i.arv - sellCosts - allIn),
     noi: null,
-    capOnCost: null,
-    capOnArv: null,
+    valuedByCapRate: false,
   };
 }
 
 // The formula in words, shown under each result so nobody has to guess.
-export function offerFormula(mode: OfferMode, i: Pick<OfferInputs, "method" | "maxAllInPct" | "targetCapPct">): string {
+export function offerFormula(
+  mode: OfferMode,
+  i: Pick<OfferInputs, "method" | "maxAllInPct" | "targetCapPct" | "useCapRate">
+): string {
   if (mode === "rental") {
-    return `Max offer = yearly NOI ÷ ${i.targetCapPct || 0}% cap rate − repairs − closing − holding − wholesale fee`;
+    const base = `Max offer = ARV × ${i.maxAllInPct || 0}% − repairs − closing − holding − wholesale fee`;
+    return i.useCapRate ? `ARV = yearly NOI ÷ ${i.targetCapPct || 0}% cap rate. ${base}` : base;
   }
   return i.method === "profit"
     ? "Max offer = ARV − selling costs − repairs − closing − holding − wholesale fee − your profit"

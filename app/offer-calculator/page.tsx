@@ -22,7 +22,11 @@ export const metadata: Metadata = {
 const FAQ = [
   {
     q: "How is the max offer worked out?",
-    a: "For a flip, you either cap your all-in cost (price, repairs, closing, holding and any wholesale fee) at a percent of ARV, or you start from ARV, take off selling costs and every other cost, and leave room for the profit you want. For a rental, the yearly net operating income divided by the cap rate you want gives the most the whole deal can cost; take off everything but the price and what's left is your offer. The exact formula is shown under each result.",
+    a: "You cap your all-in cost (price, repairs, closing, holding and any wholesale fee) at a percent of ARV, or, for a flip, start from ARV, take off selling costs and every other cost, and leave room for the profit you want. Rentals use the percent rule, since a refi lender lends against value. For buildings with 5 or more units, turn on the cap rate switch: ARV becomes the yearly net operating income divided by the cap rate, and the offer follows from that. The exact formula is shown under each result.",
+  },
+  {
+    q: "When should I use a cap rate?",
+    a: "Only for apartment buildings with 5 or more units. Those are appraised on the income they produce, so a lower cap rate means a higher value. Houses and 2–4 unit properties are valued off sold comps, so leave the switch off and use your ARV.",
   },
   {
     q: "What percent of ARV should I use?",
