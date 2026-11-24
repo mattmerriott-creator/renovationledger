@@ -110,6 +110,7 @@ export async function createProject(fd: FormData) {
     refinance_ltv_pct: num(fd, "refinance_ltv_pct"), refinance_closing_costs: num(fd, "refinance_closing_costs"),
     exit_date: str(fd, "exit_date"),
     monthly_rent: num(fd, "monthly_rent"), monthly_operating_expenses: num(fd, "monthly_operating_expenses"),
+    monthly_taxes: num(fd, "monthly_taxes"), monthly_insurance: num(fd, "monthly_insurance"), monthly_hoa: num(fd, "monthly_hoa"),
     refinance_rate: num(fd, "refinance_rate"), refinance_term_months: num(fd, "refinance_term_months"),
   });
 
@@ -129,6 +130,7 @@ export async function updateProject(fd: FormData) {
         exit_strategy=?, loan_type=?, loan_term_months=?, interest_rate=?, points=?, down_payment=?,
         purchase_closing_costs=?, realtor_fee_pct=?, selling_closing_costs=?, refinance_ltv_pct=?,
         refinance_closing_costs=?, exit_date=?, monthly_rent=?, monthly_operating_expenses=?,
+        monthly_taxes=?, monthly_insurance=?, monthly_hoa=?,
         refinance_rate=?, refinance_term_months=?
        WHERE id=? AND user_id=?`
     )
@@ -145,6 +147,7 @@ export async function updateProject(fd: FormData) {
       num(fd, "purchase_closing_costs"), num(fd, "realtor_fee_pct") || 6, num(fd, "selling_closing_costs"),
       num(fd, "refinance_ltv_pct") || 75, num(fd, "refinance_closing_costs"), str(fd, "exit_date"),
       num(fd, "monthly_rent"), num(fd, "monthly_operating_expenses"),
+      num(fd, "monthly_taxes"), num(fd, "monthly_insurance"), num(fd, "monthly_hoa"),
       num(fd, "refinance_rate"), Math.round(num(fd, "refinance_term_months")) || 360,
       id, user.id
     );

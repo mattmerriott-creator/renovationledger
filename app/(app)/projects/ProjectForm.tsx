@@ -151,14 +151,32 @@ export default function ProjectFormFields({ project }: { project?: Partial<Proje
           <input id="monthly_rent" name="monthly_rent" inputMode="decimal" defaultValue={p?.monthly_rent || ""} placeholder="1450" />
         </div>
         <div className="field">
-          <label htmlFor="monthly_operating_expenses">Monthly operating expenses (BRRRR)</label>
-          <input id="monthly_operating_expenses" name="monthly_operating_expenses" inputMode="decimal" defaultValue={p?.monthly_operating_expenses || ""} placeholder="350" />
-        </div>
-        <div className="field">
           <label htmlFor="refinance_rate">Refinance rate % (BRRRR)</label>
           <input id="refinance_rate" name="refinance_rate" inputMode="decimal" defaultValue={p?.refinance_rate || ""} placeholder="7.25" />
         </div>
+        <div className="field">
+          <label htmlFor="monthly_hoa">HOA / month (BRRRR)</label>
+          <input id="monthly_hoa" name="monthly_hoa" inputMode="decimal" defaultValue={p?.monthly_hoa || ""} placeholder="0" />
+        </div>
       </div>
+      <div className="form-grid-3">
+        <div className="field">
+          <label htmlFor="monthly_taxes">Property taxes / month (BRRRR)</label>
+          <input id="monthly_taxes" name="monthly_taxes" inputMode="decimal" defaultValue={p?.monthly_taxes || ""} placeholder="180" />
+        </div>
+        <div className="field">
+          <label htmlFor="monthly_insurance">Insurance / month (BRRRR)</label>
+          <input id="monthly_insurance" name="monthly_insurance" inputMode="decimal" defaultValue={p?.monthly_insurance || ""} placeholder="100" />
+        </div>
+        <div className="field">
+          <label htmlFor="monthly_operating_expenses">Other expenses / month (BRRRR)</label>
+          <input id="monthly_operating_expenses" name="monthly_operating_expenses" inputMode="decimal" defaultValue={p?.monthly_operating_expenses || ""} placeholder="170" />
+        </div>
+      </div>
+      <p className="small secondary" style={{ marginTop: -8, marginBottom: 16 }}>
+        DSCR is figured the way DSCR lenders do it: rent ÷ (loan payment + taxes + insurance + HOA). Other expenses
+        (management, upkeep, vacancy) count in cash flow but not DSCR.
+      </p>
       <div className="field">
         <label htmlFor="refinance_term_months">Refinance term (months, BRRRR)</label>
         <input id="refinance_term_months" name="refinance_term_months" inputMode="numeric" defaultValue={p?.refinance_term_months || ""} placeholder="360" />

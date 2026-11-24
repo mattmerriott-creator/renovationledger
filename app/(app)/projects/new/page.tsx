@@ -10,6 +10,7 @@ import { Project } from "@/lib/db";
 const PREFILL_NUMBERS = [
   "arv", "purchase_price", "purchase_closing_costs", "monthly_rent", "monthly_operating_expenses",
   "refinance_ltv_pct", "refinance_rate", "refinance_term_months", "refinance_closing_costs",
+  "monthly_taxes", "monthly_insurance", "monthly_hoa",
 ] as const;
 
 function prefillFrom(q: Record<string, string | undefined>): Partial<Project> | undefined {

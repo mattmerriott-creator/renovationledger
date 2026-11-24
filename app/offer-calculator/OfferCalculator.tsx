@@ -196,7 +196,7 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
         : `Holding: ${money(inputs.holdingMonthly)}/mo × ${inputs.holdMonths} mo.`,
       mode !== "wholesale" && inputs.wholesaleFee ? `Assignment fee paid: ${money(inputs.wholesaleFee)}.` : "",
       mode === "rental"
-        ? `Refi loan: ${money(res.loan)} at ${inputs.interestRate}% for ${inputs.termYears} yrs, lender DSCR ${res.dscr?.toFixed(2) ?? "—"} (rent ÷ PITIA). Operating expenses include taxes, insurance, HOA, other expenses and ${inputs.vacancyPct}% vacancy.`
+        ? `Refi loan: ${money(res.loan)} at ${inputs.interestRate}% for ${inputs.termYears} yrs, lender DSCR ${res.dscr?.toFixed(2) ?? "—"} (rent ÷ PITIA). Other expenses include ${inputs.vacancyPct}% vacancy.`
         : "",
       `Max offer: ${money(res.maxOffer)}.`,
     ].filter(Boolean).join(" ");
@@ -208,11 +208,13 @@ export default function OfferCalculator({ loggedIn }: { loggedIn: boolean }) {
     });
     if (mode !== "wholesale") q.set("purchase_closing_costs", String(inputs.buyClosing));
     if (mode === "rental") {
-      // Projects work from rent − operating expenses, so every expense plus
-      // vacancy goes into operating expenses to keep NOI the same as here.
+      // Projects keep taxes, insurance and HOA separate (they count in DSCR);
+      // other expenses plus vacancy go into "other expenses" so NOI matches.
       q.set("monthly_rent", String(inputs.monthlyRent));
-      const opex = inputs.taxesMonthly + inputs.insuranceMonthly + inputs.hoaMonthly + inputs.otherExpenses;
-      q.set("monthly_operating_expenses", String(Math.round(opex + inputs.monthlyRent * (inputs.vacancyPct / 100))));
+      q.set("monthly_taxes", String(inputs.taxesMonthly));
+      q.set("monthly_insurance", String(inputs.insuranceMonthly));
+      q.set("monthly_hoa", String(inputs.hoaMonthly));
+      q.set("monthly_operating_expenses", String(Math.round(inputs.otherExpenses + inputs.monthlyRent * (inputs.vacancyPct / 100))));
       q.set("refinance_ltv_pct", String(inputs.ltvPct));
       q.set("refinance_rate", String(inputs.interestRate));
       q.set("refinance_term_months", String(Math.round(inputs.termYears * 12)));

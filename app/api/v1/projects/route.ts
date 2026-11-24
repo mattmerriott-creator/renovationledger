@@ -52,6 +52,8 @@ export async function POST(req: NextRequest) {
     refinance_ltv_pct: asNumber(body.refinance_ltv_pct), refinance_closing_costs: asNumber(body.refinance_closing_costs),
     exit_date: asString(body.exit_date),
     monthly_rent: asNumber(body.monthly_rent), monthly_operating_expenses: asNumber(body.monthly_operating_expenses),
+    monthly_taxes: asNumber(body.monthly_taxes), monthly_insurance: asNumber(body.monthly_insurance),
+    monthly_hoa: asNumber(body.monthly_hoa),
     refinance_rate: asNumber(body.refinance_rate), refinance_term_months: asNumber(body.refinance_term_months),
   });
 
