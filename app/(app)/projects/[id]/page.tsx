@@ -14,10 +14,10 @@ export default async function ProjectOverviewPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ first?: string }>;
+  searchParams: Promise<{ first?: string; cloned?: string }>;
 }) {
   const { id } = await params;
-  const { first } = await searchParams;
+  const { first, cloned } = await searchParams;
   const user = await requireUser();
   const project = getOwnedProject(Number(id), user.id) as Project;
   const f = getProjectFinancials(project.id);
@@ -34,6 +34,12 @@ export default async function ProjectOverviewPage({
         active={first === "1"}
         properties={{ project_id: project.id }}
       />
+      {cloned === "1" && (
+        <div className="form-success">
+          Copied. The budget, holding costs, comps and all the numbers came over; transactions, draws and photos
+          didn&apos;t. Update the name and address under Edit project details.
+        </div>
+      )}
       <div className="grid-4" style={{ marginBottom: 16 }}>
         <div className="card card-dark">
           <div className="stat-number">{money(f.allIn)}</div>

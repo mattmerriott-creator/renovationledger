@@ -60,6 +60,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     values.push(n);
   }
 
+  // archived: true/false hides or restores the project (status is kept).
+  if ("archived" in body) {
+    if (typeof body.archived !== "boolean") {
+      return NextResponse.json({ error: "'archived' must be true or false." }, { status: 400 });
+    }
+    sets.push("archived = ?");
+    values.push(body.archived ? 1 : 0);
+  }
+
   // arv_source: "comps" or "manual". Sending an arv on its own means it was
   // set by hand, so the project switches to manual.
   if ("arv_source" in body) {

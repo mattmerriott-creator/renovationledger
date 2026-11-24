@@ -17,7 +17,7 @@ import {
   createApiKey,
   revokeApiKey,
 } from "./auth";
-import { createProjectRecord } from "./projects";
+import { createProjectRecord, cloneProjectRecord } from "./projects";
 import { isArvSource, syncCompsArv } from "./arv";
 import { saveUpload, deleteUpload, deleteProjectUploads } from "./files";
 
@@ -163,6 +163,26 @@ export async function deleteProject(fd: FormData) {
   if (getOwnedProject(id, user.id)) deleteProjectUploads(id);
   getDb().prepare("DELETE FROM projects WHERE id = ? AND user_id = ?").run(id, user.id);
   redirect("/dashboard");
+}
+
+export async function cloneProject(fd: FormData) {
+  const user = await requireUser();
+  const newId = cloneProjectRecord(user.id, Number(fd.get("project_id")));
+  if (!newId) redirect("/dashboard");
+  revalidatePath("/dashboard");
+  redirect(`/projects/${newId}?cloned=1`);
+}
+
+// Archive or restore. Archived projects keep their status and data; they're
+// just hidden from the dashboard and left out of portfolio totals.
+export async function setProjectArchived(fd: FormData) {
+  const user = await requireUser();
+  const id = Number(fd.get("project_id"));
+  const archived = str(fd, "archived") === "1" ? 1 : 0;
+  getDb().prepare("UPDATE projects SET archived = ? WHERE id = ? AND user_id = ?").run(archived, id, user.id);
+  revalidatePath("/dashboard");
+  revalidatePath(`/projects/${id}`, "layout");
+  redirect(archived ? "/dashboard?archived=1" : `/projects/${id}`);
 }
 
 // ---------- Budget ----------
